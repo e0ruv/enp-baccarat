@@ -695,6 +695,7 @@ body[data-mode="snow"] .bonus-rail { border-color: rgba(169, 220, 242, .32); }
   display: grid; place-items: center;
   min-width: 0; min-height: 0;
   background: #FFFFFF;
+  overflow: hidden;
 }
 .br-cell .rim {
   position: relative; z-index: 1;
@@ -708,8 +709,11 @@ body[data-mode="snow"] .bonus-rail { border-color: rgba(169, 220, 242, .32); }
 .br-cell.p { color: #2E64D6; }
 .br-cell.b { color: #E23A46; }
 .br-cell .slash {
-  position: absolute; inset: 14%; z-index: 2;
-  border-top: 2px solid #12A05A; transform: rotate(-42deg); border-radius: 2px;
+  position: absolute; left: 50%; top: 50%; z-index: 2;
+  width: min(62%, 19px); height: min(62%, 19px);
+  transform: translate(-50%, -50%) rotate(-42deg);
+  border-top: 2.5px solid #12A05A;
+  border-radius: 2px;
 }
 .br-cell .pd {
   position: absolute; left: 50%; bottom: 4%; transform: translateX(-50%); z-index: 2;
@@ -761,11 +765,16 @@ body[data-mode="snow"] .bonus-rail { border-color: rgba(169, 220, 242, .32); }
 .bead-cell.p .bch { background: #2E64D6; }
 .bead-cell.b .bch { background: #E23A46; }
 .bead-cell.t .bch { background: #12A05A; }
-.bead-cell .slash { position: absolute; inset: 18%; z-index: 2; border-top: 1.5px solid rgba(255, 255, 255, .9); transform: rotate(-42deg); }
+.bead-cell .slash {
+  position: absolute; left: 50%; top: 50%; z-index: 2;
+  width: min(66%, 13px); height: min(66%, 13px);
+  transform: translate(-50%, -50%) rotate(-42deg);
+  border-top: 1.6px solid rgba(255, 255, 255, .95);
+}
 .bead-cell .pd { position: absolute; right: -1px; bottom: 0; width: 3px; height: 3px; border-radius: 50%; background: #E0A93A; z-index: 2; }
 
 .road-chev {
-  position: absolute; right: 5px; bottom: 26px; z-index: 4;
+  position: absolute; right: 4px; bottom: 2px; z-index: 4;
   width: 20px; height: 20px; border-radius: 50%;
   display: grid; place-items: center;
   background: #FFFFFF;
