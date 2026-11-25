@@ -32,20 +32,32 @@
   const SPOT_LABEL = {
     player: '플레이어',
     banker: '뱅커',
-    tie: '타이',
+    tie: '무',
     playerPair: '플레이어 페어',
-    bankerPair: '뱅커 페어'
+    bankerPair: '뱅커 페어',
+    playerBonus: '플레이어 보너스',
+    bankerBonus: '뱅커 보너스',
+    perfectPair: '퍼펙트 페어',
+    eitherPair: '이더 페어'
   };
   const SPOT_KEY = {
     player: 'p',
     banker: 'b',
     tie: 't',
     playerPair: 'pp',
-    bankerPair: 'bp'
+    bankerPair: 'bp',
+    playerBonus: 'pb',
+    bankerBonus: 'bb',
+    perfectPair: 'pf',
+    eitherPair: 'ep'
   };
+  const SPOT_ORDER = ['player', 'banker', 'tie', 'playerPair', 'bankerPair', 'playerBonus', 'bankerBonus', 'perfectPair', 'eitherPair'];
 
   /* ───────────── profiles & storage ───────────── */
-  const emptyBets = () => ({ player: 0, banker: 0, tie: 0, playerPair: 0, bankerPair: 0 });
+  const emptyBets = () => ({
+    player: 0, banker: 0, tie: 0, playerPair: 0, bankerPair: 0,
+    playerBonus: 0, bankerBonus: 0, perfectPair: 0, eitherPair: 0
+  });
 
   const DB_KEY = 'enp_baccarat_accounts_v1';
   const LEGACY_KEY = 'enp_baccarat_v1';
@@ -194,7 +206,26 @@
     payTie: $('#payTie'),
     payPP: $('#payPP'),
     payBP: $('#payBP'),
-    payPPEl: $('#payPP'),
+    payPB: $('#payPB'),
+    payBB: $('#payBB'),
+    payPerfect: $('#payPerfect'),
+    payEither: $('#payEither'),
+    roundClock: $('#roundClock'),
+    clockNum: $('#clockNum'),
+    handBadge: $('#handBadge'),
+    statusBalance: $('#statusBalance'),
+    statusLimit: $('#statusLimit'),
+    dealerView: $('#dealerView'),
+    matArea: $('#matArea'),
+    matTip: $('#matTip'),
+    shuffleVeil: $('#shuffleVeil'),
+    roadEye: $('#roadEye'),
+    roadSmall: $('#roadSmall'),
+    roadCock: $('#roadCock'),
+    tieRate: $('#tieRate'),
+    predP: $('#predP'),
+    predB: $('#predB'),
+    bonusEmpty: $('#bonusEmpty'),
     squeezeHint: $('#squeezeHint'),
     revealAllBtn: $('#revealAllBtn'),
     lightningVeil: $('#lightningVeil'),
@@ -320,6 +351,7 @@
   /* ───────────── render: money & bets ───────────── */
   function renderBalance() {
     el.balance.textContent = Math.round(S.balance).toLocaleString('ko-KR');
+    if (el.statusBalance) el.statusBalance.textContent = won(S.balance);
     if (el.modalBalance) el.modalBalance.textContent = won(S.balance);
   }
 
@@ -350,6 +382,8 @@
       const spotEl = $(`[data-spot="${spot}"]`);
       if (spotEl) spotEl.classList.toggle('has-bet', amt > 0);
     }
+
+    if (el.matTip) el.matTip.classList.toggle('on', stake > 0 && S.phase === 'betting');
   }
 
   function renderShoe() {
@@ -364,13 +398,29 @@
     const st = S.stats;
     const n = st.hands || 0;
     el.statHands.textContent = n;
-    el.statP.textContent = n ? Math.round((st.player / n) * 100) + '%' : '0%';
-    el.statB.textContent = n ? Math.round((st.banker / n) * 100) + '%' : '0%';
-    el.statT.textContent = n ? Math.round((st.tie / n) * 100) + '%' : '0%';
-    el.pPairs.textContent = st.playerPair || 0;
-    el.bPairs.textContent = st.bankerPair || 0;
-    el.statNet.textContent = wonSign(st.profit || 0);
-    el.statNet.classList.toggle('neg', (st.profit || 0) < 0);
+    el.statP.textContent = st.player || 0;
+    el.statB.textContent = st.banker || 0;
+    el.statT.textContent = st.tie || 0;
+    if (el.pPairs) el.pPairs.textContent = st.playerPair || 0;
+    if (el.bPairs) el.bPairs.textContent = st.bankerPair || 0;
+    if (el.statNet) {
+      el.statNet.textContent = wonSign(st.profit || 0);
+      el.statNet.classList.toggle('neg', (st.profit || 0) < 0);
+    }
+    renderPredict();
+  }
+
+  /* ───────────── prediction strip ───────────── */
+  function renderPredict() {
+    const hist = S.history;
+    const n = hist.length;
+    const ties = hist.filter((h) => h.winner === 'tie').length;
+    if (el.tieRate) el.tieRate.textContent = (n ? Math.round((ties / n) * 100) : 0) + '%';
+    const last = hist.slice(-3).map((h) => h.winner);
+    [[el.predP, 'player'], [el.predB, 'banker']].forEach(([box, side]) => {
+      if (!box) return;
+      Array.from(box.querySelectorAll('i')).forEach((dot, i) => dot.classList.toggle('on', last[i] === side));
+    });
   }
 
   /* ───────────── render: mode ───────────── */
@@ -387,14 +437,12 @@
     } else if (S.mode === 'sakura') {
       el.tableRule.textContent = '벚꽃 카드 1–5장 · 2x ~ 8x 중첩 · 수수료 없음';
       el.bonusIcon.textContent = '🌸';
-      el.bonusTitle.textContent = '벚꽃 보너스 라운드';
-      el.bonusTag.textContent = '1–5 CARDS · ×2 ~ ×8';
+      el.bonusTitle.textContent = '벚꽃 보너스';
       el.bonusNote.textContent = '딜 전 피어남';
     } else {
       el.tableRule.textContent = '눈꽃 카드 1–5장 · 2x ~ 8x 중첩 · 수수료 없음';
       el.bonusIcon.textContent = '❄️';
-      el.bonusTitle.textContent = '눈꽃 보너스 라운드';
-      el.bonusTag.textContent = '1–5 CARDS · ×2 ~ ×8';
+      el.bonusTitle.textContent = '눈꽃 보너스';
       el.bonusNote.textContent = '딜 전 결정';
     }
 
@@ -410,6 +458,15 @@
     el.payTie.textContent = p.tie + ':1';
     el.payPP.textContent = p.playerPair + ':1';
     el.payBP.textContent = p.bankerPair + ':1';
+    if (el.payPB) el.payPB.textContent = '1~' + p.playerBonus + ':1';
+    if (el.payBB) el.payBB.textContent = '1~' + p.bankerBonus + ':1';
+    if (el.payPerfect) el.payPerfect.textContent = `하나 ${p.perfectPair}:1 · 더블 ${cfg.perfectDouble}:1`;
+    if (el.payEither) el.payEither.textContent = p.eitherPair + ':1';
+
+    if (el.statusLimit) {
+      const max = cfg.limit || 5000000;
+      el.statusLimit.textContent = max >= 10000 ? `₩1천–${max / 10000}만` : `₩1천–${max}`;
+    }
 
     $$('.mode-btn').forEach((b) => b.classList.toggle('is-active', b.dataset.mode === S.mode));
   }
@@ -630,16 +687,22 @@
   function clearTable() {
     el.playerCards.innerHTML = '';
     el.bankerCards.innerHTML = '';
-    el.playerTotal.innerHTML = '<i>—</i>';
-    el.bankerTotal.innerHTML = '<i>—</i>';
+    if (el.playerTotal) el.playerTotal.innerHTML = '<i>0</i>';
+    if (el.bankerTotal) el.bankerTotal.innerHTML = '<i>0</i>';
     if (el.feltStatus) el.feltStatus.textContent = 'PLACE YOUR BETS';
-    el.playerTotal.classList.remove('is-hot');
-    el.bankerTotal.classList.remove('is-hot');
+    if (el.playerTotal) el.playerTotal.classList.remove('is-win');
+    if (el.bankerTotal) el.bankerTotal.classList.remove('is-win');
+    if (el.handBadge) {
+      el.handBadge.className = 'hand-badge';
+      el.handBadge.textContent = '';
+    }
+    renderMiniCards();
     el.squeezeHint.classList.remove('on');
     el.result.classList.remove('on');
     clearTimeout(resultTimer);
     squeezeWait = null;
     if (el.liveMult) el.liveMult.innerHTML = '';
+    liveSig = '';
   }
 
   function revealedCards(side) {
@@ -647,13 +710,39 @@
     return $$('.card.up', box).map((c) => c._card);
   }
 
+  /* 미니 카드: 베팅 매트의 플레이어/뱅커 칸에 실시간으로 같이 보임 */
+  function renderMiniCards() {
+    for (const side of ['player', 'banker']) {
+      const box = $(`[data-mini="${side}"]`);
+      if (!box) continue;
+      const nodes = $$('.card', containerFor(side));
+      box.innerHTML = '';
+      nodes.forEach((node) => {
+        const card = node._card;
+        if (!card) return;
+        const d = document.createElement('span');
+        const up = node.classList.contains('up');
+        if (!up) {
+          d.className = 'mini-card back';
+        } else {
+          const red = card.suit === 'h' || card.suit === 'd';
+          d.className = 'mini-card' + (red ? ' red' : '');
+          d.innerHTML = `<b>${card.rank}</b><i>${SYM[card.suit]}</i>`;
+        }
+        box.appendChild(d);
+      });
+    }
+  }
+
   function updateTotals() {
     for (const side of ['player', 'banker']) {
       const cards = revealedCards(side);
       const badge = side === 'player' ? el.playerTotal : el.bankerTotal;
-      if (!cards.length) badge.innerHTML = '<i>—</i>';
+      if (!badge) continue;
+      if (!cards.length) badge.innerHTML = '<i>0</i>';
       else badge.textContent = E.handTotal(cards);
     }
+    renderMiniCards();
   }
 
   function allUp() {
@@ -723,6 +812,7 @@
       return;
     }
     for (const e of S.stack) {
+      if (e.kind === 'move') continue;
       S.balance += e.amount + e.fee;
       S.bets[e.spot] = Math.max(0, (S.bets[e.spot] || 0) - e.amount);
     }
@@ -739,12 +829,37 @@
     if (S.phase !== 'betting') return;
     const last = S.stack.pop();
     if (!last) { toast('되돌릴 베팅이 없습니다'); return; }
+    if (last.kind === 'move') {
+      S.bets[last.to] = Math.max(0, (S.bets[last.to] || 0) - last.amount);
+      S.bets[last.from] = (S.bets[last.from] || 0) + last.amount;
+      window.Sound && Sound.click();
+      renderBetState();
+      save();
+      toast('베팅 이동을 되돌렸습니다');
+      return;
+    }
     S.bets[last.spot] = Math.max(0, S.bets[last.spot] - last.amount);
     S.balance += last.amount + last.fee;
     window.Sound && Sound.click();
     renderBalance();
     renderBetState();
     save();
+  }
+
+  /** 베팅 금액을 다른 칸으로 통째로 옮깁니다 (잔액 변화 없음, 실행 취소 가능). */
+  function moveBet(from, to) {
+    if (S.phase !== 'betting') { toast('핸드 진행 중에는 옮길 수 없습니다'); return false; }
+    if (!(from in S.bets) || !(to in S.bets) || from === to) return false;
+    const amount = S.bets[from] || 0;
+    if (!amount) { toast('옮길 베팅이 없습니다'); return false; }
+    S.bets[from] = 0;
+    S.bets[to] = (S.bets[to] || 0) + amount;
+    S.stack.push({ kind: 'move', from, to, amount, fee: 0 });
+    window.Sound && Sound.chip();
+    renderBetState();
+    save();
+    toast(`${SPOT_LABEL[from]} → ${SPOT_LABEL[to]} · ${won(amount)} 이동`);
+    return true;
   }
 
   function clearBets() {
@@ -876,6 +991,7 @@
     S.bonus = [];
     S.hand = null;
     clearTable();
+    if (el.dealerView) el.dealerView.classList.add('is-focus');
     if (el.feltStatus) el.feltStatus.textContent = 'NO MORE BETS · DEALING';
     renderBetState();
     renderBonusEmpty();
@@ -888,9 +1004,11 @@
     if (S.shoe.needsShuffle()) {
       S.shoe.reshuffle();
       renderShoe();
+      if (el.shuffleVeil) el.shuffleVeil.classList.add('on');
       toast('슈 셔플 · 416장');
       window.Sound && Sound.card();
-      await sleep(fast ? 90 : 380);
+      await sleep(fast ? 320 : 780);
+      if (el.shuffleVeil) el.shuffleVeil.classList.remove('on');
     }
 
     // bonus round (blossom / snowflake)
@@ -1125,6 +1243,22 @@
 
     markHits(settled);
 
+    // 승리한 쪽 점수 배지 강조 + 중앙 P/B/T 결과 배지
+    for (const side of ['player', 'banker']) {
+      const badge = side === 'player' ? el.playerTotal : el.bankerTotal;
+      if (badge) badge.classList.toggle('is-win', result.winner === side);
+    }
+    if (el.handBadge) {
+      const letter = result.winner === 'player' ? 'P' : result.winner === 'banker' ? 'B' : 'T';
+      el.handBadge.className = 'hand-badge';
+      el.handBadge.textContent = letter;
+      void el.handBadge.offsetWidth;
+      el.handBadge.className = 'hand-badge on ' + letter.toLowerCase();
+    }
+    if (el.dealerView) el.dealerView.classList.remove('is-focus');
+    renderMiniCards();
+    startRoundClock(true);
+
     const betSpots = Object.keys(S.bets).filter((k) => S.bets[k] > 0);
     S.bets = emptyBets();
     S.stack = [];
@@ -1226,17 +1360,18 @@
   /* ───────────── roads ───────────── */
   function renderRoads() {
     const hist = S.history;
-    el.roadCount.textContent = hist.length;
+    if (el.roadCount) el.roadCount.textContent = hist.length;
 
-    // Bead plate (원판)
+    // ── 비드로드 (우측 세로 열)
     el.bead.innerHTML = '';
-    const beadHist = hist.slice(-96);
+    const ROWS = 6;
+    const beadHist = hist.slice(-24);
     beadHist.forEach((h, i) => {
       const d = document.createElement('div');
       const cls = h.winner === 'player' ? 'p' : h.winner === 'banker' ? 'b' : 't';
       d.className = 'bead-cell ' + cls;
-      d.style.gridColumn = String(Math.floor(i / 6) + 1);
-      d.style.gridRow = String((i % 6) + 1);
+      d.style.gridColumn = String(Math.floor(i / ROWS) + 1);
+      d.style.gridRow = String((i % ROWS) + 1);
       d.textContent = h.winner === 'player' ? 'P' : h.winner === 'banker' ? 'B' : 'T';
       if (h.winner === 'tie') {
         const s = document.createElement('span');
@@ -1245,19 +1380,14 @@
       }
       if (h.pp || h.bp) {
         const dot = document.createElement('span');
-        dot.className = 'pd ' + (h.pp ? 'pp' : 'bp');
+        dot.className = 'pd';
         d.appendChild(dot);
-        if (h.pp && h.bp) {
-          const dot2 = document.createElement('span');
-          dot2.className = 'pd bp';
-          dot2.style.right = '6px';
-          d.appendChild(dot2);
-        }
       }
       el.bead.appendChild(d);
     });
+    el.bead.style.gridTemplateColumns = `repeat(${Math.max(1, Math.min(4, Math.ceil(beadHist.length / ROWS)))}, minmax(0, 1fr))`;
 
-    // Big road (빅로드)
+    // ── 빅로드
     el.bigroad.innerHTML = '';
     const cells = [];
     let last = null;
@@ -1278,10 +1408,15 @@
     }
 
     const visible = cells.slice(-140);
+    const maxC = visible.reduce((m, c) => Math.max(m, c.c), 0);
+    const boardW = el.bigroad.clientWidth || 320;
+    const COLS = Math.max(9, Math.floor(boardW / 19));
+    const off = Math.max(0, maxC - (COLS - 1));
     visible.forEach((cell) => {
+      if (cell.c < off) return;
       const d = document.createElement('div');
       d.className = 'br-cell ' + (cell.winner === 'player' ? 'p' : 'b');
-      d.style.gridColumn = String(cell.c + 1);
+      d.style.gridColumn = String(cell.c - off + 1);
       d.style.gridRow = String(cell.r + 1);
       const rim = document.createElement('span');
       rim.className = 'rim';
@@ -1293,25 +1428,44 @@
         s.style.opacity = String(Math.min(1, 0.45 + cell.ties * 0.3));
         d.appendChild(s);
       }
-      if (cell.pp) {
+      if (cell.pp || cell.bp) {
         const dot = document.createElement('span');
-        dot.className = 'pd pp';
-        d.appendChild(dot);
-      }
-      if (cell.bp) {
-        const dot = document.createElement('span');
-        dot.className = 'pd bp';
-        if (cell.pp) dot.style.right = '7px';
+        dot.className = 'pd';
         d.appendChild(dot);
       }
       el.bigroad.appendChild(d);
     });
+    el.bigroad.style.gridTemplateColumns = `repeat(${COLS}, minmax(0, 1fr))`;
 
-    const wrap = $('.road-wrap');
-    if (wrap) wrap.scrollLeft = wrap.scrollWidth;
+    // ── 중국점 1·2·3군
+    const derived = E.derivedRoads(hist);
+    paintMiniRoad(el.roadEye, derived.eye);
+    paintMiniRoad(el.roadSmall, derived.small);
+    paintMiniRoad(el.roadCock, derived.cock);
+  }
+
+  function paintMiniRoad(box, marks) {
+    if (!box) return;
+    box.innerHTML = '';
+    const boxW = box.clientWidth || 90;
+    const COLS = Math.max(6, Math.floor(boxW / 8));
+    box.style.gridTemplateColumns = `repeat(${COLS}, minmax(0, 1fr))`;
+    if (!marks || !marks.length) return;
+    const maxC = marks.reduce((m, k) => Math.max(m, k.c), 0);
+    const off = Math.max(0, maxC - (COLS - 1));
+    marks.forEach((k) => {
+      if (k.c < off) return;
+      const d = document.createElement('div');
+      d.className = 'mr-dot ' + k.kind;
+      d.style.gridColumn = String(k.c - off + 1);
+      d.style.gridRow = String(k.r + 1);
+      d.appendChild(document.createElement('i'));
+      box.appendChild(d);
+    });
   }
 
   function renderHistory() {
+    if (!el.historyList) return;
     el.historyList.innerHTML = '';
     if (!S.history.length) {
       el.historyList.innerHTML = '<span class="hist-empty">아직 기록이 없습니다</span>';
@@ -1337,6 +1491,7 @@
     renderHistory();
     applyModeCopy();
     renderBonusEmpty();
+    renderMiniCards();
     if (S.bonus && S.bonus.length) renderBonusResult();
   }
 
@@ -1408,6 +1563,154 @@
     window.setTimeout(finish, 2100);
   }
 
+  /* ───────────── round clock (표시용 · 자동 딜 없음) ───────────── */
+  const CLOCK_SECONDS = 20;
+  let clockLeft = CLOCK_SECONDS;
+  let clockTimer = 0;
+
+  function paintClock() {
+    if (!el.roundClock) return;
+    const k = Math.max(0, Math.min(1, clockLeft / CLOCK_SECONDS));
+    el.roundClock.style.setProperty('--deg', (k * 360).toFixed(1) + 'deg');
+    if (el.clockNum) el.clockNum.textContent = String(Math.max(0, clockLeft));
+    el.roundClock.classList.toggle('is-urgent', clockLeft <= 5);
+    el.roundClock.classList.toggle('is-idle', S.phase !== 'betting');
+  }
+
+  function startRoundClock(reset) {
+    if (reset) clockLeft = CLOCK_SECONDS;
+    clearInterval(clockTimer);
+    paintClock();
+    clockTimer = setInterval(() => {
+      if (S.phase !== 'betting') { paintClock(); return; }
+      clockLeft -= 1;
+      if (clockLeft < 0) clockLeft = CLOCK_SECONDS;
+      paintClock();
+    }, 1000);
+  }
+
+  /* ───────────── betting mat: tap · drag · long-press move ───────────── */
+  const MOVE_HOLD = 380;
+  let moveState = null;
+  let ghostEl = null;
+  let suppressTap = false;
+
+  function zoneAtPoint(x, y) {
+    const node = document.elementFromPoint(x, y);
+    const zone = node && node.closest ? node.closest('[data-spot]') : null;
+    return zone ? zone.dataset.spot : null;
+  }
+
+  function ensureGhost(label) {
+    if (!ghostEl) {
+      ghostEl = document.createElement('div');
+      ghostEl.className = 'drag-chip';
+      document.body.appendChild(ghostEl);
+    }
+    ghostEl.textContent = label || '';
+    return ghostEl;
+  }
+
+  function removeGhost() {
+    if (ghostEl) { ghostEl.remove(); ghostEl = null; }
+  }
+
+  function clearZoneMarks() {
+    $$('.mat-zone').forEach((z) => z.classList.remove('is-move-src', 'is-move-ok', 'is-drop'));
+  }
+
+  function bindZones() {
+    $$('[data-spot]').forEach((zone) => {
+      const spot = zone.dataset.spot;
+
+      zone.addEventListener('keydown', (ev) => {
+        if (ev.key === 'Enter' || ev.key === ' ') {
+          ev.preventDefault();
+          placeBet(spot, S.chip);
+        }
+      });
+
+      zone.addEventListener('pointerdown', (ev) => {
+        if (ev.button != null && ev.button > 0) return;
+        if (S.phase !== 'betting') return;
+        moveState = { spot, zone, x: ev.clientX, y: ev.clientY, moved: false, hold: false, id: ev.pointerId };
+        try { zone.setPointerCapture(ev.pointerId); } catch (err) { /* older browsers */ }
+        moveState.timer = setTimeout(() => {
+          if (!moveState || moveState.moved) return;
+          moveState.hold = true;
+          if ((S.bets[spot] || 0) > 0) {
+            zone.classList.add('is-move-src');
+            $$('.mat-zone').forEach((z) => { if (z !== zone) z.classList.add('is-move-ok'); });
+            if (navigator.vibrate) { try { navigator.vibrate(12); } catch (err) { /* ignore */ } }
+            toast('이동할 칸을 눌러주세요');
+            window.Sound && Sound.click();
+          } else {
+            toast('이 칸에는 베팅이 없습니다');
+          }
+        }, MOVE_HOLD);
+      });
+
+      zone.addEventListener('pointermove', (ev) => {
+        if (!moveState || moveState.id !== ev.pointerId) return;
+        const dx = ev.clientX - moveState.x;
+        const dy = ev.clientY - moveState.y;
+        if (!moveState.moved && Math.hypot(dx, dy) > 9) {
+          moveState.moved = true;
+          clearTimeout(moveState.timer);
+          const amount = S.bets[spot] || 0;
+          if (amount > 0) {
+            zone.classList.add('is-move-src');
+            const g = ensureGhost(chipLabel(amount));
+            g.style.left = ev.clientX + 'px';
+            g.style.top = ev.clientY + 'px';
+          }
+        }
+        if (moveState.moved && ghostEl) {
+          ghostEl.style.left = ev.clientX + 'px';
+          ghostEl.style.top = ev.clientY + 'px';
+          const over = zoneAtPoint(ev.clientX, ev.clientY);
+          $$('.mat-zone').forEach((z) => {
+            z.classList.toggle('is-drop', !!over && over !== spot && z.dataset.spot === over);
+          });
+        }
+      });
+
+      const finish = (ev, cancelled) => {
+        if (!moveState || moveState.id !== ev.pointerId) return;
+        const ms = moveState;
+        moveState = null;
+        clearTimeout(ms.timer);
+        const dragged = ms.moved;
+        const held = ms.hold;
+        const drop = cancelled ? null : zoneAtPoint(ev.clientX, ev.clientY);
+        removeGhost();
+        clearZoneMarks();
+
+        if (dragged || held) {
+          suppressTap = true;
+          setTimeout(() => { suppressTap = false; }, 420);
+          if (drop && drop !== ms.spot) moveBet(ms.spot, drop);
+          else toast('이동을 취소했습니다');
+          return;
+        }
+        if (cancelled) return;
+        placeBet(ms.spot, S.chip);
+        suppressTap = true;
+        setTimeout(() => { suppressTap = false; }, 0);
+      };
+
+      zone.addEventListener('pointerup', (ev) => finish(ev, false));
+      zone.addEventListener('pointercancel', (ev) => finish(ev, true));
+
+      // keyboard / programmatic fallback (a real pointer tap is already handled above)
+      zone.addEventListener('click', (ev) => {
+        ev.preventDefault();
+        if (suppressTap) return;
+        placeBet(spot, S.chip);
+      });
+    });
+  }
+
   /* ───────────── events ───────────── */
   function bind() {
     // Mode switching
@@ -1417,16 +1720,10 @@
       setMode(btn.dataset.mode);
     });
 
-    // Betting spots
-    $$('[data-spot]').forEach((spotEl) => {
-      spotEl.addEventListener('click', () => placeBet(spotEl.dataset.spot, S.chip));
-      spotEl.addEventListener('keydown', (ev) => {
-        if (ev.key === 'Enter' || ev.key === ' ') {
-          ev.preventDefault();
-          placeBet(spotEl.dataset.spot, S.chip);
-        }
-      });
-    });
+    // Betting spots — tap to bet, drag / long-press to move the stake
+    bindZones();
+    const mat = el.matArea || $('.betting-mats, .betting-mat');
+    if (mat) mat.addEventListener('contextmenu', (ev) => ev.preventDefault());
 
     // Chips
     el.chipRow.addEventListener('click', (ev) => {
@@ -1448,15 +1745,17 @@
       toast('가상 머니 +₩1,000,000 충전');
     });
 
-    el.reshuffleBtn.addEventListener('click', () => {
-      if (S.phase !== 'betting') { toast('핸드 중에는 셔플할 수 없습니다'); return; }
-      S.shoe.reshuffle();
-      renderShoe();
-      window.Sound && Sound.card();
-      toast('슈를 새로 셔플했습니다 · 416장');
-    });
+    if (el.reshuffleBtn) {
+      el.reshuffleBtn.addEventListener('click', () => {
+        if (S.phase !== 'betting') { toast('핸드 중에는 셔플할 수 없습니다'); return; }
+        S.shoe.reshuffle();
+        renderShoe();
+        window.Sound && Sound.card();
+        toast('슈를 새로 셔플했습니다 · 416장');
+      });
+    }
 
-    $('#shoeEl').addEventListener('click', () => {
+    $('#shoeEl') && $('#shoeEl').addEventListener('click', () => {
       if (S.phase !== 'betting') return;
       S.shoe.reshuffle();
       renderShoe();
@@ -1466,17 +1765,17 @@
 
     el.revealAllBtn.addEventListener('click', revealAll);
 
-    // mobile roadmap drawer
+    // 출목표 보조 로드 접기
     const roadToggle = $('#roadToggle');
-    const roadClose = $('#roadClose');
-    const roadScrim = $('#roadScrim');
-    const setRoadOpen = (open) => {
-      document.body.classList.toggle('road-open', open);
-      if (roadToggle) roadToggle.setAttribute('aria-expanded', String(open));
-    };
-    if (roadToggle) roadToggle.addEventListener('click', () => setRoadOpen(!document.body.classList.contains('road-open')));
-    if (roadClose) roadClose.addEventListener('click', () => setRoadOpen(false));
-    if (roadScrim) roadScrim.addEventListener('click', () => setRoadOpen(false));
+    if (roadToggle) {
+      roadToggle.addEventListener('click', () => {
+        const board = document.querySelector('.roadboard');
+        if (!board) return;
+        const min = board.classList.toggle('is-min');
+        roadToggle.setAttribute('aria-expanded', String(!min));
+        window.Sound && Sound.click();
+      });
+    }
 
     el.soundBtn.addEventListener('click', () => {
       S.settings.sound = !S.settings.sound;
@@ -1553,15 +1852,17 @@
       clearTimeout(resultTimer);
     });
 
-    el.roadTabs.addEventListener('click', (ev) => {
-      const tab = ev.target.closest('.road-tab');
-      if (!tab) return;
-      roadView = tab.dataset.road;
-      $$('.road-tab', el.roadTabs).forEach((t) => t.classList.toggle('is-active', t === tab));
-      el.bead.hidden = roadView !== 'bead';
-      el.bigroad.hidden = roadView !== 'big';
-      window.Sound && Sound.click();
-    });
+    if (el.roadTabs) {
+      el.roadTabs.addEventListener('click', (ev) => {
+        const tab = ev.target.closest('.road-tab');
+        if (!tab) return;
+        roadView = tab.dataset.road;
+        $$('.road-tab', el.roadTabs).forEach((t) => t.classList.toggle('is-active', t === tab));
+        el.bead.hidden = roadView !== 'bead';
+        el.bigroad.hidden = roadView !== 'big';
+        window.Sound && Sound.click();
+      });
+    }
 
     // ── account / auth
     el.accountBtn.addEventListener('click', () => openAuth(DB.current ? 'account' : 'login'));
@@ -1624,6 +1925,22 @@
     // Unlock audio on first gesture
     const unlock = () => { window.Sound && Sound.unlock(); window.removeEventListener('pointerdown', unlock); };
     window.addEventListener('pointerdown', unlock, { once: true });
+
+    // ── 더블탭·핀치 확대 방지 (상단 로고 더블탭 6160 은 그대로 동작)
+    document.addEventListener('dblclick', (ev) => { ev.preventDefault(); }, { passive: false });
+    document.addEventListener('gesturestart', (ev) => { ev.preventDefault(); });
+    document.addEventListener('gesturechange', (ev) => { ev.preventDefault(); });
+    const blockPinch = (ev) => { if (ev.touches && ev.touches.length > 1) ev.preventDefault(); };
+    document.addEventListener('touchstart', blockPinch, { passive: false });
+    document.addEventListener('touchmove', blockPinch, { passive: false });
+    let lastTouchEnd = 0;
+    document.addEventListener('touchend', (ev) => {
+      const now = Date.now();
+      const brand = ev.target && ev.target.closest ? ev.target.closest('#brand') : null;
+      const typing = ev.target && ev.target.tagName && /INPUT|TEXTAREA/.test(ev.target.tagName);
+      if (!brand && !typing && now - lastTouchEnd < 320) ev.preventDefault();
+      lastTouchEnd = now;
+    }, { passive: false });
 
     // Keyboard shortcuts
     window.addEventListener('keydown', (ev) => {
@@ -2046,6 +2363,7 @@
     renderAccount();
     renderAll();
     bind();
+    startRoundClock(true);
     runSplash();
 
     if (S.settings.squeeze && S.mode === 'speed') {
@@ -2057,6 +2375,7 @@
       engine: E,
       deal,
       placeBet,
+      moveBet,
       setMode,
       setChip,
       rebet,

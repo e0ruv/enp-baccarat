@@ -14,6 +14,17 @@
     '10': 0, J: 0, Q: 0, K: 0
   };
 
+  /** Player / Banker bonus side bet: payout by the hand's point total. */
+  const BONUS_TOTALS = { 9: 30, 8: 10, 7: 6, 6: 4, 5: 3, 4: 2 };
+
+  /** Pair flavour used by Perfect Pair / Either Pair side bets. */
+  function pairKind(a, b) {
+    if (!a || !b || a.rank !== b.rank) return null;
+    if (a.suit === b.suit) return 'perfect';
+    const red = (c) => c.suit === 'h' || c.suit === 'd';
+    return red(a) === red(b) ? 'colored' : 'mixed';
+  }
+
   /** Table configurations — three tables, all virtual money. */
   const MODES = {
     speed: {
@@ -23,7 +34,10 @@
       short: '스피드',
       icon: '🚀',
       fee: 0,
-      payouts: { player: 1, banker: 0.95, tie: 8, playerPair: 11, bankerPair: 11 },
+      limit: 5000000,
+      payouts: { player: 1, banker: 0.95, tie: 8, playerPair: 11, bankerPair: 11, playerBonus: 30, bankerBonus: 30, perfectPair: 25, eitherPair: 5 },
+      perfectDouble: 200,
+      bonusTotals: BONUS_TOTALS,
       bonus: null,
       dealDelay: 55,
       flipDelay: 0,
@@ -37,7 +51,10 @@
       short: '벚꽃',
       icon: '🌸',
       fee: 0,
-      payouts: { player: 1, banker: 0.95, tie: 8, playerPair: 11, bankerPair: 11 },
+      limit: 5000000,
+      payouts: { player: 1, banker: 0.95, tie: 8, playerPair: 11, bankerPair: 11, playerBonus: 30, bankerBonus: 30, perfectPair: 25, eitherPair: 5 },
+      perfectDouble: 200,
+      bonusTotals: BONUS_TOTALS,
       bonus: { min: 1, max: 5, multipliers: [2, 3, 4, 5, 8], noun: '벚꽃 카드' },
       dealDelay: 260,
       flipDelay: 190,
@@ -51,7 +68,10 @@
       short: '눈꽃',
       icon: '❄️',
       fee: 0,
-      payouts: { player: 1, banker: 0.95, tie: 8, playerPair: 11, bankerPair: 11 },
+      limit: 5000000,
+      payouts: { player: 1, banker: 0.95, tie: 8, playerPair: 11, bankerPair: 11, playerBonus: 30, bankerBonus: 30, perfectPair: 25, eitherPair: 5 },
+      perfectDouble: 200,
+      bonusTotals: BONUS_TOTALS,
       bonus: { min: 1, max: 5, multipliers: [2, 3, 4, 5, 8], noun: '눈꽃 크리스탈' },
       dealDelay: 260,
       flipDelay: 190,
@@ -190,6 +210,9 @@
 
     const winner = playerTotal > bankerTotal ? 'player' : bankerTotal > playerTotal ? 'banker' : 'tie';
 
+    const playerPairKind = pairKind(player[0], player[1]);
+    const bankerPairKind = pairKind(banker[0], banker[1]);
+
     return {
       playerCards: player,
       bankerCards: banker,
@@ -199,8 +222,12 @@
       natural,
       playerThird,
       bankerThird,
-      playerPair: player.length >= 2 && player[0].rank === player[1].rank,
-      bankerPair: banker.length >= 2 && banker[0].rank === banker[1].rank,
+      playerPair: !!playerPairKind,
+      bankerPair: !!bankerPairKind,
+      playerPairKind,
+      bankerPairKind,
+      playerPerfect: playerPairKind === 'perfect',
+      bankerPerfect: bankerPairKind === 'perfect',
       trace
     };
   }
@@ -357,6 +384,57 @@
       add('bankerPair', bets.bankerPair, result.bankerPair ? 'win' : 'lose', cfg.payouts.bankerPair, mult, hits);
     }
 
+    // Player / Banker bonus — pays by that hand's final point total (4–9)
+    for (const [spot, cardsKey, totalKey] of [
+      ['playerBonus', 'playerCards', 'playerTotal'],
+      ['bankerBonus', 'bankerCards', 'bankerTotal']
+    ]) {
+      const stake = bets[spot] || 0;
+      if (!stake) continue;
+      const total = result[totalKey];
+      const table = cfg.bonusTotals || BONUS_TOTALS;
+      const ratio = table[total] || 0;
+      let mult = 1;
+      let hits = [];
+      if (ratio > 0 && cfg.bonus) {
+        const m = multiplierFor(result[cardsKey], bonus);
+        mult = m.multiplier;
+        hits = m.hits;
+      }
+      add(spot, stake, ratio > 0 ? 'win' : 'lose', ratio, mult, hits);
+    }
+
+    // Perfect pair — 하나(25:1) for one perfect pair, 더블(200:1) for both hands
+    if (bets.perfectPair) {
+      const perfects = [];
+      if (result.playerPerfect) perfects.push(...result.playerCards.slice(0, 2));
+      if (result.bankerPerfect) perfects.push(...result.bankerCards.slice(0, 2));
+      const both = result.playerPerfect && result.bankerPerfect;
+      const ratio = perfects.length ? (both ? cfg.perfectDouble : cfg.payouts.perfectPair) : 0;
+      let mult = 1;
+      let hits = [];
+      if (ratio > 0 && cfg.bonus) {
+        const m = multiplierFor(perfects, bonus);
+        mult = m.multiplier;
+        hits = m.hits;
+      }
+      add('perfectPair', bets.perfectPair, ratio > 0 ? 'win' : 'lose', ratio, mult, hits);
+    }
+
+    // Either pair — any pair on either hand, 5:1
+    if (bets.eitherPair) {
+      const pairCards = result.playerPair ? result.playerCards.slice(0, 2)
+        : result.bankerPair ? result.bankerCards.slice(0, 2) : [];
+      let mult = 1;
+      let hits = [];
+      if (pairCards.length && cfg.bonus) {
+        const m = multiplierFor(pairCards, bonus);
+        mult = m.multiplier;
+        hits = m.hits;
+      }
+      add('eitherPair', bets.eitherPair, pairCards.length ? 'win' : 'lose', cfg.payouts.eitherPair, mult, hits);
+    }
+
     return {
       items,
       returned,
@@ -367,9 +445,62 @@
     };
   }
 
+  /**
+   * Big road columns: consecutive runs of the same side (max 6 tall).
+   * Ties are skipped (they hang off the previous cell in the visual road).
+   */
+  function bigRoadColumns(history) {
+    const cols = [];
+    for (const h of history || []) {
+      if (!h || (h.winner !== 'player' && h.winner !== 'banker')) continue;
+      const last = cols[cols.length - 1];
+      if (last && last.winner === h.winner && last.len < 6) last.len += 1;
+      else cols.push({ winner: h.winner, len: 1 });
+    }
+    return cols;
+  }
+
+  /**
+   * Derived roads (중국점 1·2·3군). Each compares a big-road column with the
+   * column `offset` places back: same length → blue, different → red.
+   * Blue marks continue downward, red marks start a new column.
+   */
+  function derivedRoad(history, offset) {
+    const cols = bigRoadColumns(history);
+    const marks = [];
+    let col = 0;
+    let row = 0;
+    let prevKind = null;
+    for (let i = offset; i < cols.length; i++) {
+      const same = cols[i].len === cols[i - offset].len;
+      const kind = same ? 'b' : 'r';
+      if (marks.length === 0) {
+        col = 0; row = 0;
+      } else if (kind === prevKind) {
+        row += 1;
+        if (row > 5) { col += 1; row = 0; }
+      } else {
+        col += 1; row = 0;
+      }
+      marks.push({ c: col, r: row, kind });
+      prevKind = kind;
+    }
+    return marks;
+  }
+
+  /** All three derived roads in one call. */
+  function derivedRoads(history) {
+    return {
+      eye: derivedRoad(history, 1),
+      small: derivedRoad(history, 2),
+      cock: derivedRoad(history, 3)
+    };
+  }
+
   global.BaccaratEngine = {
-    RANKS, SUITS, SUIT_SYMBOL, VALUES, MODES,
-    buildDeck, shuffle, cardValue, handTotal, Shoe,
-    playHand, dealHand, createBonusCards, multiplierFor, settleRound
+    RANKS, SUITS, SUIT_SYMBOL, VALUES, MODES, BONUS_TOTALS,
+    buildDeck, shuffle, cardValue, handTotal, pairKind, Shoe,
+    playHand, dealHand, createBonusCards, multiplierFor, settleRound,
+    bigRoadColumns, derivedRoad, derivedRoads
   };
 })(typeof window !== 'undefined' ? window : globalThis);

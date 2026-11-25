@@ -2,11 +2,13 @@
 <html lang="ko">
 <head>
 <meta charset="utf-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, shrink-to-fit=no" />
-<meta name="theme-color" content="#07090A" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+<meta name="theme-color" content="#07080B" />
 <meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="mobile-web-app-capable" content="yes" />
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-<meta name="description" content="가상 머니 전용 모의 바카라 시뮬레이터. 스피드 · 벚꽃 · 눈꽃 3가지 테이블, 8덱 슈, 출목표, 보너스 배수." />
+<meta name="format-detection" content="telephone=no" />
+<meta name="description" content="가상 머니 전용 모의 바카라 시뮬레이터. 스피드 · 벚꽃 · 눈꽃 3가지 테이블, 8덱 슈, 빅로드 · 중국점, 실전 사이드 베팅." />
 <title>ENP BACCARAT · 가상 머니 모의 바카라</title>
 <link rel="stylesheet" href="css/style.css" />
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Crect width='24' height='24' rx='6' fill='%230A0C0D'/%3E%3Cpath d='M13.3 3 5 13.5h5.2L9.5 21l8.4-11.5h-5.2L13.3 3Z' fill='%23D9B25F'/%3E%3C/svg%3E" />
@@ -67,7 +69,7 @@
         <span class="brand-mark"><b>E</b><span class="brand-glyph" id="brandGlyph">🌸</span></span>
         <span class="brand-text"><b>ENP</b><i>BACCARAT</i></span>
       </a>
-      <span class="vm-badge">가상 머니 · 모의 테이블</span>
+      <span class="vm-badge">가상 머니</span>
     </div>
 
     <nav class="mode-switch" id="modeSwitch" aria-label="바카라 모드 선택">
@@ -79,7 +81,7 @@
     <div class="topbar-right">
       <button class="account-btn is-guest" id="accountBtn" aria-label="계정 · 로그인 또는 가입">
         <span class="avatar" id="avatar">G</span>
-        <span class="acc-name" id="accName">로그인·가입</span>
+        <span class="acc-name" id="accName">로그인</span>
       </button>
       <button class="logout-btn" id="logoutBtn" hidden aria-label="로그아웃" title="로그아웃">
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 4h3a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-3" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/><path d="M10 8l-4 4 4 4M6 12h9" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
@@ -98,54 +100,26 @@
 
   <!-- ══════════ MAIN ══════════ -->
   <main class="layout">
+   <div class="main-col">
 
-    <section class="table-wrap" aria-label="바카라 테이블">
-
-      <!-- ─── STUDIO BACKDROP ─── -->
+    <!-- ─────────── 1 · DEALER STUDIO ─────────── -->
+    <section class="dealer-view" id="dealerView" aria-label="딜러 스튜디오">
       <div class="studio" aria-hidden="true">
         <div class="st-wall"></div>
         <div class="st-curtain c1"></div>
         <div class="st-curtain c2"></div>
-        <div class="st-pillar p1"><i class="st-pillar-cap"></i></div>
-        <div class="st-pillar p2"><i class="st-pillar-cap"></i></div>
-        <div class="st-pillar p3"><i class="st-pillar-cap"></i></div>
-        <div class="st-pillar p4"><i class="st-pillar-cap"></i></div>
         <div class="st-arch"></div>
-        <div class="st-ghost gh-p">PLAYER</div>
-        <div class="st-ghost gh-b">BANKER</div>
         <div class="st-beam b1"></div>
         <div class="st-beam b2"></div>
         <div class="st-beam b3"></div>
         <div class="st-cone"></div>
-        <div class="st-floor"></div>
         <div class="st-vignette"></div>
       </div>
 
-      <!-- ─── 3D TABLE ─── -->
-      <div class="table3d">
-        <div class="felt" id="felt">
-          <canvas id="fx" class="fx-canvas" aria-hidden="true"></canvas>
-          <div class="felt-spot" aria-hidden="true"></div>
-          <div class="felt-grain" aria-hidden="true"></div>
-          <div class="felt-ring" aria-hidden="true"></div>
-          <div class="felt-watermark" id="feltMark" aria-hidden="true">🌸</div>
+      <span class="shoe-info" id="shoeInfo">416 / 416</span>
+      <div class="shoe-meter" aria-hidden="true"><i id="shoeBar"></i></div>
 
-          <!-- topline -->
-          <div class="table-topline">
-            <span class="tbl-name" id="tableName">벚꽃 바카라</span>
-            <span class="tbl-vm">가상 머니</span>
-            <span class="tbl-rule" id="tableRule">벚꽃 카드 1–5장 · 2x ~ 8x 중첩 · 수수료 없음</span>
-            <div class="shoe-meter" aria-hidden="true">
-              <i id="shoeBar"></i>
-            </div>
-            <span class="shoe-info" id="shoeInfo">416 / 416</span>
-            <button class="mini-btn" id="roadToggle" aria-expanded="false">출목표</button>
-            <button class="mini-btn" id="reshuffleBtn">셔플</button>
-          </div>
-
-          <div class="live-mult" id="liveMult"></div>
-
-          <!-- dealer -->
+      <div class="dealer-slot"><!-- dealer -->
           <div class="dealer" id="dealer" aria-hidden="true">
             <div class="dealer-halo"></div>
             <svg class="dealer-svg" viewBox="0 0 400 300" preserveAspectRatio="xMidYMax meet">
@@ -285,214 +259,225 @@
                 <ellipse cx="200" cy="299" rx="126" ry="7" fill="#000" opacity=".4"/>
               </g>
             </svg>
-          </div>
+</div></div>
 
-          <!-- the shoe -->
-          <button class="shoe" id="shoeEl" title="잔여 카드 (클릭하면 셔플)" aria-label="카드 슈 · 잔여 카드">
-            <span class="shoe-3d" aria-hidden="true">
-              <span class="sh-base"></span>
-              <span class="sh-deck"></span>
-              <span class="sh-mouth"></span>
-              <span class="sh-top"></span>
-            </span>
-            <span class="shoe-meta"><span class="shoe-label">SHOE</span><span class="shoe-count" id="shoeCount">416</span></span>
-          </button>
+      <div class="felt" id="felt">
+        <canvas id="fx" class="fx-canvas" aria-hidden="true"></canvas>
+        <div class="felt-grain" aria-hidden="true"></div>
+        <div class="felt-mark" id="feltMark" aria-hidden="true">🌸</div>
+        <div class="felt-cushion" aria-hidden="true"></div>
 
-          <!-- hands -->
-          <div class="hands">
-            <section class="hand hand-player" aria-label="플레이어">
-              <div class="hand-head">
-                <span class="total-badge" id="playerTotal"><i>—</i></span>
-                <span class="hand-titles">
-                  <span class="hand-name">PLAYER</span>
-                  <span class="hand-ko">플레이어 · 1:1</span>
-                </span>
-              </div>
-              <div class="cards" id="playerCards"></div>
-            </section>
+        <div class="felt-label fl-p">PLAYER</div>
+        <div class="felt-label fl-b">BANKER</div>
 
-            <div class="table-crest" aria-hidden="true">
-              <span class="crest-line"></span>
-              <span class="crest-mark">E</span>
-              <span class="crest-word">ENP</span>
-              <span class="crest-line"></span>
-            </div>
+        <div class="hand hand-p" aria-label="플레이어 카드"><div class="cards" id="playerCards"></div></div>
+        <div class="hand hand-b" aria-label="뱅커 카드"><div class="cards" id="bankerCards"></div></div>
 
-            <section class="hand hand-banker" aria-label="뱅커">
-              <div class="hand-head">
-                <span class="hand-titles">
-                  <span class="hand-name">BANKER</span>
-                  <span class="hand-ko">뱅커 · 0.95:1</span>
-                </span>
-                <span class="total-badge" id="bankerTotal"><i>—</i></span>
-              </div>
-              <div class="cards" id="bankerCards"></div>
-            </section>
-          </div>
+        <button class="shoe" id="shoeEl" title="잔여 카드 (누르면 셔플)" aria-label="카드 슈 · 잔여 카드">
+          <span class="shoe-3d" aria-hidden="true">
+            <span class="sh-base"></span>
+            <span class="sh-deck"></span>
+            <span class="sh-mouth"></span>
+          </span>
+          <span class="shoe-count" id="shoeCount">416</span>
+        </button>
 
-          <!-- betting mat -->
-          <div class="mat" role="group" aria-label="베팅 테이블">
-            <div class="mat-status" aria-hidden="true"><span id="feltStatus">PLACE YOUR BETS</span></div>
-            <div class="mat-shell">
-              <span class="mat-marker mk-l" aria-hidden="true"></span>
-              <div class="mat-zones">
-                <button class="mat-zone mz-pp" data-spot="playerPair" aria-label="플레이어 페어 베팅">
-                  <span class="mz-name">P 페어</span>
-                  <span class="mz-pay" id="payPP">11:1</span>
-                  <span class="bet-chip" data-betchip="playerPair" aria-hidden="true"></span>
-                </button>
+        <div class="live-mult" id="liveMult"></div>
+      </div>
 
-                <button class="mat-zone mz-player" data-spot="player" aria-label="플레이어에 베팅">
-                  <span class="mz-name">PLAYER</span>
-                  <span class="mz-pay" id="payPlayer">1:1</span>
-                  <span class="bet-chip" data-betchip="player" aria-hidden="true"></span>
-                </button>
+      <div class="score-badge sb-p" id="playerTotal"><i>0</i></div>
+      <div class="score-badge sb-b" id="bankerTotal"><i>0</i></div>
+      <div class="hand-badge" id="handBadge" aria-hidden="true"></div>
 
-                <button class="mat-zone mz-tie" data-spot="tie" aria-label="타이 베팅">
-                  <span class="mz-name">TIE</span>
-                  <span class="mz-pay" id="payTie">8:1</span>
-                  <span class="bet-chip" data-betchip="tie" aria-hidden="true"></span>
-                </button>
+      <div class="round-clock" id="roundClock" aria-label="베팅 카운트다운">
+        <span class="rc-num" id="clockNum">20</span>
+      </div>
 
-                <button class="mat-zone mz-banker" data-spot="banker" aria-label="뱅커에 베팅">
-                  <span class="mz-name">BANKER</span>
-                  <span class="mz-pay" id="payBanker">0.95:1</span>
-                  <span class="bet-chip" data-betchip="banker" aria-hidden="true"></span>
-                </button>
-
-                <button class="mat-zone mz-bp" data-spot="bankerPair" aria-label="뱅커 페어 베팅">
-                  <span class="mz-name">B 페어</span>
-                  <span class="mz-pay" id="payBP">11:1</span>
-                  <span class="bet-chip" data-betchip="bankerPair" aria-hidden="true"></span>
-                </button>
-              </div>
-              <span class="mat-marker mk-r" aria-hidden="true"></span>
-            </div>
-          </div>
-
-          <div class="squeeze-hint" id="squeezeHint">
-            <span>🫳 카드를 탭해 쪼개세요</span>
-            <button id="revealAllBtn" class="mini-btn">전체 오픈</button>
-          </div>
-
-          <div class="lightning-veil" id="lightningVeil" aria-hidden="true">
-            <div class="lv-flash"></div>
-          </div>
-          <div class="rail-front" aria-hidden="true"></div>
-          <div class="rail-edge" aria-hidden="true"></div>
+      <div class="bonus-rail" id="bonusStrip">
+        <div class="br-head">
+          <span class="br-icon" id="bonusIcon">🌸</span>
+          <b id="bonusTitle">벚꽃 보너스</b>
+          <span class="br-note" id="bonusNote">딜 전 공개</span>
+        </div>
+        <div class="bs-cards" id="bonusCards">
+          <span class="bs-empty" id="bonusEmpty">딜하면 1~5장 공개</span>
         </div>
       </div>
 
-      <!-- ─── BOTTOM OVERLAY BAR ─── -->
-      <div class="bottom-bar">
-
-        <div class="bonus-strip" id="bonusStrip">
-          <div class="bs-head">
-            <div class="bs-title">
-              <span class="bs-icon" id="bonusIcon">🌸</span>
-              <span id="bonusTitle">벚꽃 보너스 라운드</span>
-            </div>
-            <span class="bs-note" id="bonusNote">딜 전 공개</span>
-          </div>
-          <div class="bs-cards" id="bonusCards">
-            <span class="bs-empty" id="bonusEmpty">딜을 누르면 1~5장의 보너스 카드가 공개됩니다</span>
-          </div>
-          <div class="bs-sub">
-            <span class="bs-chip" id="bonusTag">1–5 CARDS · ×2 ~ ×8</span>
-            <span class="bs-hint">승리 핸드에 곱연산</span>
-          </div>
-        </div>
-
-        <aside class="panel bet-panel" aria-label="베팅 패널">
-          <div class="bet-controls">
-            <div class="amount-row">
-              <button class="op-btn" id="halfBtn" aria-label="절반">½</button>
-              <div class="amount-display"><span class="won">₩</span><span id="chipAmount">10,000</span></div>
-              <button class="op-btn" id="doubleBtn" aria-label="두 배">2×</button>
-            </div>
-            <div class="chips" id="chipRow" role="group" aria-label="칩 선택">
-              <button class="chip" data-chip="1000" aria-label="1천"><i>1천</i></button>
-              <button class="chip" data-chip="5000" aria-label="5천"><i>5천</i></button>
-              <button class="chip is-active" data-chip="10000" aria-label="1만"><i>1만</i></button>
-              <button class="chip" data-chip="50000" aria-label="5만"><i>5만</i></button>
-              <button class="chip" data-chip="100000" aria-label="10만"><i>10만</i></button>
-              <button class="chip" data-chip="500000" aria-label="50만"><i>50만</i></button>
-            </div>
-          </div>
-
-          <div class="bet-summary">
-            <div class="sum-row"><span>총 베팅액</span><b id="totalStake">₩0</b></div>
-            <div class="sum-row" id="feeRow"><span id="feeLabel">수수료</span><b id="totalFee">₩0</b></div>
-            <div class="sum-row grand"><span>총 차감액</span><b id="totalDebit">₩0</b></div>
-          </div>
-
-          <div class="bet-actions">
-            <button class="btn ghost" id="rebetBtn">재베팅</button>
-            <button class="btn ghost" id="undoBtn">되돌리기</button>
-            <button class="btn ghost" id="clearBtn">초기화</button>
-          </div>
-
-          <button class="deal-btn" id="dealBtn">
-            <span class="deal-label">DEAL</span>
-            <span class="deal-amt" id="dealAmount">₩0</span>
-          </button>
-        </aside>
-
-        <aside class="panel side-panel" aria-label="통계 및 출목표">
-          <div class="road-head">
-            <div class="road-tabs" id="roadTabs">
-              <button class="road-tab is-active" data-road="bead">원판</button>
-              <button class="road-tab" data-road="big">빅로드</button>
-            </div>
-            <span class="road-count" id="roadCount">0</span>
-            <button class="road-close" id="roadClose" aria-label="출목표 닫기">✕</button>
-          </div>
-
-          <div class="stats">
-            <div class="stat"><span class="k">핸드</span><b id="statHands">0</b></div>
-            <div class="stat p"><span class="k">P</span><b id="statP">0%</b></div>
-            <div class="stat b"><span class="k">B</span><b id="statB">0%</b></div>
-            <div class="stat t"><span class="k">T</span><b id="statT">0%</b></div>
-          </div>
-
-          <div class="pair-stats">
-            <span><i class="dot pp"></i>P 페어 <b id="pPairs">0</b></span>
-            <span><i class="dot bp"></i>B 페어 <b id="bPairs">0</b></span>
-            <span class="net">순손익 <b id="statNet">₩0</b></span>
-          </div>
-
-          <div class="road-wrap">
-            <div class="bead" id="bead"></div>
-            <div class="bigroad" id="bigroad" hidden></div>
-          </div>
-
-          <div class="history">
-            <h3>최근 기록</h3>
-            <div class="history-list" id="historyList"><span class="hist-empty">아직 기록이 없습니다</span></div>
-          </div>
-        </aside>
-
-        <span class="bar-note" id="tableNote">8덱 슈 · 14장 이하 자동 셔플</span>
+      <div class="squeeze-hint" id="squeezeHint">
+        <span>카드를 탭해 쪼개세요</span>
+        <button id="revealAllBtn" class="mini-btn">전체 오픈</button>
       </div>
 
-      <div class="road-scrim" id="roadScrim" aria-hidden="true"></div>
+      <div class="shuffle-veil" id="shuffleVeil" aria-hidden="true"><i class="sh-card"></i><span>SHUFFLING</span></div>
+      <div class="lightning-veil" id="lightningVeil" aria-hidden="true"><div class="lv-flash"></div></div>
+    </section>
 
-      <!-- RESULT -->
-      <div class="result" id="result" role="status" aria-live="polite">
-        <div class="result-glow"></div>
-        <div class="result-kicker" id="resultKicker">핸드 결과</div>
-        <div class="result-title" id="resultTitle">뱅커 승리</div>
-        <div class="result-mult" id="resultMult">🌸 ×8 BLOSSOM WIN!</div>
-        <div class="result-amount" id="resultAmount">+₩20,000</div>
-        <div class="result-rows" id="resultRows"></div>
-        <button class="result-close" id="resultClose">계속</button>
+    <!-- ─────────── 2 · ROAD BOARD ─────────── -->
+    <section class="roadboard" aria-label="출목표">
+      <div class="rb-main">
+        <div class="bigroad" id="bigroad"></div>
+
+        <div class="mini-roads">
+          <div class="mr"><span class="mr-label">1군</span><div class="mr-grid" id="roadEye"></div></div>
+          <div class="mr"><span class="mr-label">2군</span><div class="mr-grid" id="roadSmall"></div></div>
+          <div class="mr"><span class="mr-label">3군</span><div class="mr-grid" id="roadCock"></div></div>
+        </div>
+      </div>
+
+      <div class="bead-wrap" aria-label="비드로드">
+        <div class="bead" id="bead"></div>
+      </div>
+
+      <button class="road-chev" id="roadToggle" aria-expanded="true" aria-label="보조 출목표 접기/펼치기">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 14l6-6 6 6" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </button>
+
+      <div class="rb-stats">
+        <span class="tie-rate" id="tieRate">0%</span>
+        <span class="hand-no">#<b id="statHands">0</b></span>
+        <span class="sp p">P<b id="statP">0</b></span>
+        <span class="sp b">B<b id="statB">0</b></span>
+        <span class="sp t">T<b id="statT">0</b></span>
+        <span class="pred p" id="predP"><i></i><i></i><i></i><em>/</em></span>
+        <span class="pred b" id="predB"><i></i><i></i><i></i><em>/</em></span>
+        <span class="road-count" id="roadCount" hidden>0</span>
+      </div>
+    </section>
+   </div>
+
+   <div class="side-col">
+    <!-- ─────────── 3 · BETTING MAT ─────────── -->
+    <section class="betting-mat" id="matArea" aria-label="베팅 매트">
+      <div class="mat-row r1">
+        <button class="mat-zone mz-player" data-spot="player" aria-label="플레이어 베팅">
+          <span class="mz-cards" data-mini="player"></span>
+          <span class="mz-name">플레이어</span>
+          <span class="mz-pay" id="payPlayer">1:1</span>
+          <span class="bet-chip" data-betchip="player"></span>
+        </button>
+
+        <button class="mat-zone mz-tie" data-spot="tie" aria-label="무(타이) 베팅">
+          <span class="mz-name">무</span>
+          <span class="mz-pay" id="payTie">8:1</span>
+          <span class="bet-chip" data-betchip="tie"></span>
+        </button>
+
+        <button class="mat-zone mz-banker" data-spot="banker" aria-label="뱅커 베팅">
+          <span class="mz-cards" data-mini="banker"></span>
+          <span class="mz-name">뱅커</span>
+          <span class="mz-pay" id="payBanker">0.95:1</span>
+          <span class="bet-chip" data-betchip="banker"></span>
+        </button>
+      </div>
+
+      <div class="mat-row r2">
+        <button class="mat-zone mz-side p-side" data-spot="playerPair" aria-label="플레이어 페어 베팅">
+          <span class="mz-name">플레이어 페어</span>
+          <span class="mz-pay" id="payPP">11:1</span>
+          <span class="bet-chip" data-betchip="playerPair"></span>
+        </button>
+        <button class="mat-zone mz-side" data-spot="playerBonus" aria-label="플레이어 보너스 베팅">
+          <span class="mz-name">플레이어 보너스</span>
+          <span class="mz-pay" id="payPB">1~30:1</span>
+          <span class="bet-chip" data-betchip="playerBonus"></span>
+        </button>
+        <button class="mat-zone mz-side" data-spot="bankerBonus" aria-label="뱅커 보너스 베팅">
+          <span class="mz-name">뱅커 보너스</span>
+          <span class="mz-pay" id="payBB">1~30:1</span>
+          <span class="bet-chip" data-betchip="bankerBonus"></span>
+        </button>
+        <button class="mat-zone mz-side b-side" data-spot="bankerPair" aria-label="뱅커 페어 베팅">
+          <span class="mz-name">뱅커 페어</span>
+          <span class="mz-pay" id="payBP">11:1</span>
+          <span class="bet-chip" data-betchip="bankerPair"></span>
+        </button>
+      </div>
+
+      <div class="mat-row r3">
+        <button class="mat-zone mz-perfect" data-spot="perfectPair" aria-label="퍼펙트 페어 베팅">
+          <span class="mz-name">퍼펙트 페어</span>
+          <span class="mz-pay" id="payPerfect">하나 25:1 · 더블 200:1</span>
+          <span class="bet-chip" data-betchip="perfectPair"></span>
+        </button>
+        <button class="mat-zone mz-either" data-spot="eitherPair" aria-label="이더 페어 베팅">
+          <span class="mz-name">이더 페어</span>
+          <span class="mz-pay" id="payEither">5:1</span>
+          <span class="bet-chip" data-betchip="eitherPair"></span>
+        </button>
+      </div>
+
+      <div class="mat-tip" id="matTip">칩을 놓은 뒤 길게 누르거나 끌어서 다른 칸으로 옮길 수 있어요</div>
+    </section>
+
+    <!-- ─────────── BET CONTROLS ─────────── -->
+    <section class="bet-controls" aria-label="베팅 컨트롤">
+      <div class="chip-line">
+        <span class="chip-now">칩 <b id="chipAmount">10,000</b></span>
+        <div class="bet-summary">
+          <span id="feeRow"><span id="feeLabel">수수료</span> <b id="totalFee">₩0</b></span>
+          <span>차감 <b id="totalDebit">₩0</b></span>
+        </div>
+      </div>
+
+      <div class="chip-row" id="chipRow" role="group" aria-label="칩 선택">
+        <button class="chip" data-chip="1000" aria-label="1천"><i>1천</i></button>
+        <button class="chip" data-chip="5000" aria-label="5천"><i>5천</i></button>
+        <button class="chip is-active" data-chip="10000" aria-label="1만"><i>1만</i></button>
+        <button class="chip" data-chip="50000" aria-label="5만"><i>5만</i></button>
+        <button class="chip" data-chip="100000" aria-label="10만"><i>10만</i></button>
+        <button class="chip" data-chip="500000" aria-label="50만"><i>50만</i></button>
+      </div>
+
+      <div class="ctrl-row">
+        <button class="ctrl-btn" id="undoBtn" aria-label="실행 취소" title="실행 취소">↺</button>
+        <button class="ctrl-btn wide" id="rebetBtn">재베팅</button>
+        <button class="ctrl-btn" id="halfBtn" aria-label="절반">½</button>
+        <button class="ctrl-btn" id="doubleBtn" aria-label="두 배">2×</button>
+        <button class="ctrl-btn" id="clearBtn" aria-label="베팅 초기화">지우기</button>
+        <button class="deal-btn" id="dealBtn">
+          <span class="deal-label">딜</span>
+          <span class="deal-amt" id="dealAmount">베팅하세요</span>
+        </button>
       </div>
     </section>
 
-    <footer class="vm-footer">
-      <span class="vm-dot"></span>
-      가상 머니 · 모의 바카라 — 실제 화폐를 사용하지 않는 시뮬레이션입니다.
+    <aside class="session-panel" aria-label="세션 정보">
+      <div class="sp-head"><h3>최근 기록</h3><span>가상 머니 · 모의 테이블</span></div>
+      <div class="history-list" id="historyList"><span class="hist-empty">아직 기록이 없습니다</span></div>
+      <div class="sp-stats">
+        <div><span>순손익</span><b id="statNet">₩0</b></div>
+        <div><span>P 페어</span><b id="pPairs">0</b></div>
+        <div><span>B 페어</span><b id="bPairs">0</b></div>
+      </div>
+    </aside>
+   </div>
+
+    <!-- ─────────── STATUS BAR ─────────── -->
+    <footer class="statusbar">
+      <span class="st-stake">총 베팅 <b id="totalStake">₩0</b></span>
+      <span class="st-bal">잔고 <b id="statusBalance">₩1,000,000</b></span>
+      <span class="st-table"><b id="tableName">벚꽃 바카라</b><i id="statusLimit">₩1,000–5,000,000</i></span>
+      <span class="st-note" id="tableNote">8덱 슈</span>
     </footer>
+
+    <span class="table-rule-src" id="tableRule" hidden>벚꽃 카드 1–5장</span>
+
+    <!-- ─────────── RESULT ─────────── -->
+    <div class="result" id="result" role="status" aria-live="polite">
+      <div class="result-glow"></div>
+      <div class="result-top">
+        <div>
+          <div class="result-kicker" id="resultKicker">핸드 결과</div>
+          <div class="result-title" id="resultTitle">뱅커 승리</div>
+        </div>
+        <div class="result-amount" id="resultAmount">+₩20,000</div>
+      </div>
+      <div class="result-mult" id="resultMult">🌸 ×8 BLOSSOM WIN!</div>
+      <div class="result-rows" id="resultRows"></div>
+      <button class="result-close" id="resultClose">계속</button>
+    </div>
+
   </main>
 </div>
 
@@ -540,23 +525,36 @@
         <h3>테이블 규칙</h3>
         <div class="rule" data-rule="speed">
           <b>🚀 스피드 바카라</b>
-          <p>수수료 없는 클래식 정산에 초고속 딜링(약 0.35초)을 적용한 테이블입니다. 쪼기 없이 즉시 오픈되며 연속 베팅에 적합합니다.</p>
-          <ul><li>플레이어 1:1 · 뱅커 0.95:1 · 타이 8:1 · 페어 11:1</li><li>보너스 카드 없음 · 수수료 없음</li></ul>
+          <p>수수료 없는 클래식 정산에 초고속 딜링을 적용한 테이블입니다. 쪼기 없이 즉시 오픈됩니다.</p>
         </div>
         <div class="rule" data-rule="sakura">
           <b>🌸 벚꽃 바카라</b>
-          <p>매 라운드 1~5장의 벚꽃 카드(2x · 3x · 4x · 5x · 8x)가 피어납니다. 승리한 핸드(또는 페어)에 벚꽃 카드가 포함되면 배당이 배수만큼 곱해지고, 여러 장이면 곱연산으로 중첩됩니다. 추가 수수료는 없습니다.</p>
-          <ul><li>플레이어 1:1 · 뱅커 0.95:1 · 타이 8:1 · 페어 11:1</li><li>벚꽃 카드가 없는 핸드는 기본 배당으로 정산</li></ul>
+          <p>매 라운드 1~5장의 벚꽃 카드(2x·3x·4x·5x·8x)가 피어납니다. 승리한 베팅에 벚꽃 카드가 포함되면 배당이 곱연산으로 중첩됩니다.</p>
         </div>
         <div class="rule" data-rule="snow">
           <b>❄️ 눈꽃 바카라</b>
-          <p>매 라운드 1~5장의 눈꽃 크리스탈(2x · 3x · 4x · 5x · 8x)이 내립니다. 승리한 핸드(또는 페어)에 눈꽃 카드가 포함되면 배당이 배수만큼 곱해지고, 여러 장이면 곱연산으로 중첩됩니다. 추가 수수료는 없습니다.</p>
-          <ul><li>플레이어 1:1 · 뱅커 0.95:1 · 타이 8:1 · 페어 11:1</li><li>눈꽃 카드가 없는 핸들은 기본 배당으로 정산</li></ul>
+          <p>매 라운드 1~5장의 눈꽃 크리스탈(2x·3x·4x·5x·8x)이 내립니다. 승리한 베팅에 눈꽃 카드가 포함되면 배당이 곱연산으로 중첩됩니다.</p>
         </div>
         <div class="rule">
           <b>🎯 계정</b>
-          <p>아이디와 PIN으로 가상 머니 계정을 만들 수 있고, 게스트로도 바로 플레이할 수 있습니다. 계정·잔액·기록은 이 기기의 브라우저에만 저장됩니다. 충전은 언제든 무료입니다.</p>
+          <p>아이디와 PIN으로 가상 머니 계정을 만들 수 있고, 게스트로도 바로 플레이할 수 있습니다. 계정·잔액·기록은 이 기기의 브라우저에만 저장됩니다.</p>
         </div>
+      </section>
+
+      <section class="m-sec">
+        <h3>사이드 베팅</h3>
+        <table class="m-table">
+          <thead><tr><th>베팅</th><th>조건</th><th>배당</th></tr></thead>
+          <tbody>
+            <tr><td>플레이어 / 뱅커</td><td>해당 핸드 승리</td><td>1:1 · 0.95:1</td></tr>
+            <tr><td>무 (타이)</td><td>양쪽 합계 동일</td><td>8:1</td></tr>
+            <tr><td>플레이어 · 뱅커 페어</td><td>첫 두 장이 같은 랭크</td><td>11:1</td></tr>
+            <tr><td>플레이어 · 뱅커 보너스</td><td>해당 핸드 합계 4~9</td><td>4→2:1 · 5→3:1 · 6→4:1 · 7→6:1 · 8→10:1 · 9→30:1</td></tr>
+            <tr><td>퍼펙트 페어</td><td>첫 두 장이 같은 랭크 + 같은 무늬 (하나) / 양쪽 모두 (더블)</td><td>25:1 · 200:1</td></tr>
+            <tr><td>이더 페어</td><td>어느 한쪽이든 페어</td><td>5:1</td></tr>
+          </tbody>
+        </table>
+        <p class="m-note">벚꽃·눈꽃 테이블에서는 위 사이드 베팅에도 보너스 카드 배수가 곱해집니다.</p>
       </section>
 
       <section class="m-sec">
