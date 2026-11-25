@@ -10,8 +10,15 @@ zero overflow at 390x844 and 1440x900.
 
 NEW: Evolution-style white road board (full 6-row grid, circular bead badges),
 photo dealer, 10 circular casino chips (1천~1억), 10억 table limit, and the
-auto-running live shoe (countdown 0 → auto deal → settle → next round, paused while
-modals are open and restarted with a fresh road on a new shoe).
+auto-running live shoe (10s countdown → auto deal → settle → result hold →
+clean table → next 10s round, paused while modals are open and restarted with a
+fresh road on a new shoe).
+
+NEW (this pass): dealer glove pulling each card out of the shoe with a flight arc,
+per-card live score badges, big unobstructed 10s countdown (gold/red emphasis),
+centre P/B/T winner badge, result sheet only when there is a payout, table cleared
+at the next round, 7 bonus cards per round, petal/snow fall on bonus-win zones and
+banners, Ask-the-road P/B next-cell preview, and one-tap-one-bet protection.
 """
 import functools
 import http.server
@@ -128,7 +135,7 @@ ENGINE_JS = r"""
     for (const mode of ['sakura', 'snow']) {
       const b = E.createBonusCards(E.MODES[mode].bonus);
       out.checked++;
-      if (b.length < 1 || b.length > 5) out.fail.push(mode + ' bonus count ' + b.length);
+      if (b.length !== 7) out.fail.push(mode + ' bonus count ' + b.length);
       if (new Set(b.map((x) => x.id)).size !== b.length) out.fail.push('bonus duplicates');
       if (b.some((x) => [2, 3, 4, 5, 8].indexOf(x.multiplier) < 0)) out.fail.push('bad multiplier');
     }
@@ -275,6 +282,26 @@ def clear(page):
     page.wait_for_timeout(120)
 
 
+def clock_probe(pg):
+    return pg.evaluate("""() => {
+      const c = document.getElementById('roundClock');
+      const d = document.getElementById('dealerView');
+      const n = document.getElementById('clockNum');
+      const r = c.getBoundingClientRect(), b = d.getBoundingClientRect();
+      const hit = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2);
+      const cs = getComputedStyle(c), ns = getComputedStyle(n);
+      return {w: Math.round(r.width), h: Math.round(r.height),
+              inside: r.left >= b.left - 1 && r.right <= b.right + 1 && r.top >= b.top - 1 && r.bottom <= b.bottom + 1,
+              onTop: !!hit && (hit === c || c.contains(hit)),
+              z: Number(cs.zIndex), font: parseFloat(ns.fontSize),
+              radius: cs.borderRadius, num: n.textContent.trim(),
+              urgent: (() => { c.classList.add('is-urgent'); const g = getComputedStyle(c).backgroundImage;
+                                c.classList.remove('is-urgent'); return g; })(),
+              warm: (() => { c.classList.add('is-warm'); const g = getComputedStyle(c).backgroundImage;
+                              c.classList.remove('is-warm'); return g; })()};
+    }""")
+
+
 def run_desktop(browser):
     ctx, page, errors = open_page(browser, {"width": 1440, "height": 900})
 
@@ -299,6 +326,14 @@ def run_desktop(browser):
       status: !!document.querySelector('.statusbar')
     })""")
     check("three-stage structure", all(ids.values()), str(ids))
+
+    # ── 우상단 10초 카운트다운: 크고, 가리지 않고, 위험 구간에서 색이 바뀜
+    clk = clock_probe(page)
+    check("desktop clock is big and inside the table", clk["w"] >= 44 and clk["inside"], str(clk))
+    check("desktop clock is never covered", clk["onTop"] and clk["z"] >= 20, str(clk))
+    check("desktop clock number is legible", clk["font"] >= 18, str(clk["font"]))
+    check("clock turns gold near the end", "255, 194, 74" in clk["warm"] or "rgb(255, 194, 74)" in clk["warm"], clk["warm"][:70])
+    check("clock turns red at the last seconds", "255, 75, 92" in clk["urgent"] or "rgb(255, 75, 92)" in clk["urgent"], clk["urgent"][:70])
 
     # ── NEW: white Evolution-style road board (grid drawn even when empty)
     road = page.evaluate("""() => {
@@ -485,12 +520,13 @@ def run_desktop(browser):
     bal_before = page.evaluate("window.__bac.state.balance")
     hands0 = page.evaluate("window.__bac.state.stats.hands")
     deal_now(page)
-    page.wait_for_function("window.__bac.state.phase === 'reveal' || window.__bac.state.phase === 'betting'", timeout=9000)
+    page.wait_for_function("window.__bac.state.phase === 'result'", timeout=15000)
+    page.wait_for_timeout(350)
     bonus = page.evaluate("window.__bac.state.bonus")
-    check("bonus round 1-5 cards", 1 <= len(bonus) <= 5, str(len(bonus)))
+    check("bonus round deals 7 cards", len(bonus) == 7, str(len(bonus)))
     check("bonus cards rendered in rail", page.eval_on_selector_all(".bonus-card", "e=>e.length") == len(bonus))
-    page.wait_for_function("window.__bac.state.phase === 'betting'", timeout=20000)
-    page.wait_for_timeout(500)
+    check("bonus rail has 7 slots", page.eval_on_selector_all(".bs-slot", "e=>e.length") == 7,
+          str(page.eval_on_selector_all(".bs-slot", "e=>e.length")))
 
     state = page.evaluate("""() => { const s = window.__bac.state; return {
         balance: s.balance, hand: s.hand, bonus: s.bonus, lastBets: s.lastBets,
@@ -501,18 +537,112 @@ def run_desktop(browser):
     check("payout matches engine", abs(state["balance"] - (bal_before + expected["returned"])) < 1,
           f"{state['balance']} vs {bal_before + expected['returned']}")
     check("hand counted", state["stats"]["hands"] == hands0 + 1)
-    check("result sheet shown", page.eval_on_selector("#result", "e=>e.classList.contains('on')"))
-    check("result amount shown", page.inner_text("#resultAmount") != "")
+    # 결과 시트는 당첨금·환급이 있을 때만 뜹니다(잃으면 승리 배지만).
+    expect_sheet = expected["returned"] > 0 or expected["net"] > 0
+    sheet_on = page.eval_on_selector("#result", "e=>e.classList.contains('on')")
+    check("result sheet only on a payout", sheet_on == expect_sheet,
+          f"sheet={sheet_on} returned={expected['returned']} net={expected['net']}")
+    if expect_sheet:
+        check("result amount shown", page.inner_text("#resultAmount") != "")
     check("mat mini cards rendered", page.eval_on_selector_all(".mz-cards .mini-card", "e=>e.length") >= 4,
           str(page.eval_on_selector_all(".mz-cards .mini-card", "e=>e.length")))
     check("score badges show hand totals",
           page.inner_text("#playerTotal") == str(state["hand"]["playerTotal"]) and
           page.inner_text("#bankerTotal") == str(state["hand"]["bankerTotal"]),
           f"{page.inner_text('#playerTotal')} / {page.inner_text('#bankerTotal')}")
-    check("centre result badge", page.eval_on_selector("#handBadge", "e=>e.classList.contains('on') && e.textContent.length===1"),
-          page.eval_on_selector("#handBadge", "e=>e.textContent"))
+    check("centre winner badge shows the result letter",
+          page.eval_on_selector("#handBadge", "e=>e.classList.contains('on') && !!e.querySelector('.hb-letter')"),
+          page.eval_on_selector("#handBadge", "e=>e.className + ' | ' + e.textContent"))
+    badge_letter = page.eval_on_selector("#handBadge .hb-letter", "e=>e.textContent")
+    check("centre winner badge matches winner",
+          badge_letter == {"player": "P", "banker": "B", "tie": "T"}[state["hand"]["winner"]], badge_letter)
     check("winning score badge highlighted",
           page.eval_on_selector_all(".score-badge.is-win", "e=>e.length") == (0 if state["hand"]["winner"] == "tie" else 1))
+
+    # ── 라운드 종료 → 테이블 비우고 새 10초 카운트다운
+    page.wait_for_function("window.__bac.state.phase === 'betting'", timeout=15000)
+    page.wait_for_timeout(200)
+    clean = page.evaluate("""() => ({
+      cards: document.querySelectorAll('#playerCards .card, #bankerCards .card').length,
+      minis: document.querySelectorAll('.mz-cards .mini-card').length,
+      p: document.querySelector('#playerTotal').textContent.trim(),
+      b: document.querySelector('#bankerTotal').textContent.trim(),
+      badge: document.getElementById('handBadge').classList.contains('on'),
+      sheet: document.getElementById('result').classList.contains('on'),
+      win: document.querySelectorAll('.score-badge.is-win').length,
+      clock: document.getElementById('clockNum').textContent
+    })""")
+    check("next round clears the table cards", clean["cards"] == 0, str(clean))
+    check("next round clears mat mini cards", clean["minis"] == 0, str(clean))
+    check("next round resets score badges", clean["p"] == "0" and clean["b"] == "0" and clean["win"] == 0, str(clean))
+    check("next round hides the winner badge", clean["badge"] is False, str(clean))
+    check("next round hides the result sheet", clean["sheet"] is False, str(clean))
+    check("fresh 10s countdown starts", clean["clock"] == "10", str(clean["clock"]))
+
+    # ── 딜러 손 모션: 슈에서 카드를 뽑아 테이블로
+    page.evaluate("window.__bac.motionLog.length = 0")
+    page.evaluate("() => { window.__bac.deal({auto: true}); }")
+    hand_seen = False
+    try:
+        page.wait_for_function("!!document.querySelector('.dh-grip')", timeout=6000)
+        hand_seen = True
+    except Exception:
+        hand_seen = False
+    check("dealer hand overlay appears while dealing", hand_seen)
+    hand_style = page.evaluate("""() => {
+      const g = document.querySelector('.dh-grip');
+      if (!g) return null;
+      const h = g.querySelector('.dh-hand');
+      const c = g.querySelector('.dh-card');
+      const r = h ? h.getBoundingClientRect() : null;
+      return {hand: !!h, card: !!c, w: r ? Math.round(r.width) : 0,
+              svg: g.querySelectorAll('svg').length};
+    }""")
+    check("dealer hand is a drawn glove with a card", hand_style and hand_style["hand"] and hand_style["card"]
+          and hand_style["w"] >= 40, str(hand_style))
+    page.wait_for_function("window.__bac.state.phase === 'result'", timeout=20000)
+    motion = page.evaluate("window.__bac.motionLog")
+    check("every dealt card has a pull motion", len(motion) >= 4 and all(m["hand"] and m["ms"] >= 200 for m in motion),
+          str(len(motion)))
+    mouth_x = page.evaluate("() => { const r = document.querySelector('#shoeEl .sh-mouth').getBoundingClientRect(); const l = document.getElementById('dhLayer').getBoundingClientRect(); return r.left + r.width / 2 - l.left; }")
+    check("card is pulled from the shoe mouth",
+          all(abs(m["from"][0] - mouth_x) < 90 for m in motion),
+          f"{[m['from'] for m in motion[:3]]} vs mouth {mouth_x}")
+
+    # ── 점수 배지 실시간 합산
+    page.wait_for_function("window.__bac.state.phase === 'betting'", timeout=15000)
+    page.evaluate("""() => {
+      window.__score_log = [];
+      for (const id of ['playerTotal', 'bankerTotal']) {
+        const el = document.getElementById(id);
+        new MutationObserver(() => window.__score_log.push([id, el.textContent.trim()]))
+          .observe(el, {childList: true, characterData: true, subtree: true});
+      }
+    }""")
+    page.evaluate("() => { window.__bac.deal({auto: true}); }")
+    page.wait_for_function("window.__bac.state.phase === 'result'", timeout=20000)
+    score_log = page.evaluate("window.__score_log")
+    p_seq = [v for (i, v) in score_log if i == "playerTotal"]
+    b_seq = [v for (i, v) in score_log if i == "bankerTotal"]
+    hand = page.evaluate("window.__bac.state.hand")
+    running = []
+    tot = 0
+    for c in hand["playerCards"]:
+        tot = (tot + ({"A": 1, "10": 0, "J": 0, "Q": 0, "K": 0}.get(c["rank"], int(c["rank"]) if c["rank"].isdigit() else 0))) % 10
+        running.append(str(tot))
+    check("score badge counts every flipped card", all(v in p_seq for v in running) and p_seq[-1] == str(hand["playerTotal"]),
+          f"{p_seq} vs {running}")
+    b_run = []
+    tot = 0
+    for c in hand["bankerCards"]:
+        tot = (tot + ({"A": 1, "10": 0, "J": 0, "Q": 0, "K": 0}.get(c["rank"], int(c["rank"]) if c["rank"].isdigit() else 0))) % 10
+        b_run.append(str(tot))
+    check("banker badge counts every flipped card", all(v in b_seq for v in b_run) and b_seq[-1] == str(hand["bankerTotal"]),
+          f"{b_seq} vs {b_run}")
+    check("score badges are not stuck at zero for a scoring hand",
+          not any(v != "0" for v in running + b_run) or
+          any(v != "0" for v in p_seq) or any(v != "0" for v in b_seq),
+          f"{p_seq} / {b_seq} vs {running} / {b_run}")
     counts = hand_counts(page)
     check("bead plate holds every hand",
           page.eval_on_selector_all(".bead-cell.p, .bead-cell.b, .bead-cell.t", "e=>e.length") == min(counts["n"], 24),
@@ -535,6 +665,30 @@ def run_desktop(browser):
           page.inner_text("#statHands") == str(counts["n"]),
           f"{page.inner_text('#statP')}/{page.inner_text('#statB')}/{page.inner_text('#statHands')}")
 
+    # ── 잃은 라운드: 결과 시트 없이 승리 배지만
+    page.wait_for_function("window.__bac.state.phase === 'betting'", timeout=15000)
+    page.evaluate("""() => {
+      const s = window.__bac.state;
+      s.bets = { player: 10000 };
+      s.balance -= 10000;
+      s.phase = 'dealing';
+      s.hand = {
+        playerCards: [{rank: '2', suit: 's', id: '2s'}, {rank: '3', suit: 'h', id: '3h'}],
+        bankerCards: [{rank: '9', suit: 's', id: '9s'}, {rank: 'K', suit: 'd', id: 'Kd'}],
+        playerTotal: 5, bankerTotal: 9, winner: 'banker', natural: false,
+        playerThird: null, bankerThird: null, playerPair: false, bankerPair: false,
+        playerPerfect: false, bankerPerfect: false, trace: ['banker-stand']
+      };
+      window.__bac.finishHand();
+    }""")
+    page.wait_for_timeout(350)
+    check("losing round shows no result sheet",
+          not page.eval_on_selector("#result", "e=>e.classList.contains('on')"))
+    check("losing round still shows the winner badge",
+          page.eval_on_selector("#handBadge", "e=>e.classList.contains('on') && e.querySelector('.hb-letter').textContent === 'B'"),
+          page.eval_on_selector("#handBadge", "e=>e.textContent"))
+    page.wait_for_function("window.__bac.state.phase === 'betting'", timeout=8000)
+
     # ── rebet
     tclick(page, "#resultClose")
     stake = sum(state["lastBets"].values())
@@ -554,6 +708,30 @@ def run_desktop(browser):
     cols = page.evaluate("BaccaratEngine.bigRoadColumns(window.__bac.state.history).length")
     dots = page.eval_on_selector_all(".mr-dot", "e=>e.length")
     check("derived roads drawn", cols >= 3 and dots >= 1, f"{cols} columns / {dots} dots")
+
+    # ── Ask the road: P/B 예측 버튼 → 다음 칸 깜빡이 미리보기
+    page.wait_for_function("window.__bac.state.phase === 'betting'", timeout=20000)
+    tclick(page, "#predP")
+    page.wait_for_timeout(150)
+    check("P preview marks one big-road cell", page.eval_on_selector_all(".br-cell.is-preview", "e=>e.length") == 1,
+          str(page.eval_on_selector_all(".br-cell.is-preview", "e=>e.length")))
+    check("P preview cell is player", page.eval_on_selector(".br-cell.is-preview", "e=>e.classList.contains('p')"))
+    check("P preview blinks (animation)", page.eval_on_selector(".br-cell.is-preview",
+          "e=>getComputedStyle(e, '::after').animationName !== 'none'"))
+    check("P preview marks the derived roads", page.eval_on_selector_all(".mr-cell.is-preview", "e=>e.length") >= 1,
+          str(page.eval_on_selector_all(".mr-cell.is-preview", "e=>e.length")))
+    check("P button shows pressed state", page.eval_on_selector("#predP", "e=>e.classList.contains('is-on') && e.getAttribute('aria-pressed') === 'true'"))
+    tclick(page, "#predB")
+    page.wait_for_timeout(150)
+    check("B preview switches to banker", page.eval_on_selector(".br-cell.is-preview", "e=>e.classList.contains('b')"),
+          page.eval_on_selector(".br-cell.is-preview", "e=>e.className"))
+    check("B button pressed, P released",
+          page.eval_on_selector("#predB", "e=>e.classList.contains('is-on')") and
+          page.eval_on_selector("#predP", "e=>!e.classList.contains('is-on')"))
+    page.wait_for_timeout(4400)
+    check("preview clears itself after a few seconds",
+          page.eval_on_selector_all(".is-preview", "e=>e.length") == 0,
+          str(page.eval_on_selector_all(".is-preview", "e=>e.length")))
 
     # ── refill / reshuffle / auto reshuffle
     bal_pre = page.evaluate("window.__bac.state.balance")
@@ -588,7 +766,10 @@ def run_desktop(browser):
     check("spectator round shows no result sheet",
           not page.eval_on_selector("#result", "e=>e.classList.contains('on')"))
     clock_now = page.inner_text("#clockNum")
-    check("countdown restarts for the next round", clock_now.isdigit() and int(clock_now) >= 15, clock_now)
+    check("countdown restarts for the next round", clock_now.isdigit() and int(clock_now) == 10, clock_now)
+    page.wait_for_timeout(1300)
+    clock_next = page.inner_text("#clockNum")
+    check("countdown is 10 seconds and ticks down", clock_next.isdigit() and int(clock_next) <= 9, clock_next)
 
     # 모달이 열려 있으면 자동 진행 정지
     page.click("#infoBtn")
@@ -636,15 +817,19 @@ def run_desktop(browser):
     check("squeeze tap reveals", page.eval_on_selector_all(".card.up", "e=>e.length") == 1)
     for _ in range(4):
         tclick(page, "#revealAllBtn")
-        page.wait_for_timeout(650)
-        if page.evaluate("window.__bac.state.phase") == "betting":
+        page.wait_for_timeout(400)
+        if page.evaluate("window.__bac.state.phase") != "reveal":
             break
     try:
-        page.wait_for_function("document.querySelector('#result').classList.contains('on')", timeout=3500)
+        page.wait_for_function("window.__bac.state.phase === 'result'", timeout=8000)
         squeeze_settled = True
     except Exception:
         squeeze_settled = False
     check("squeeze settles", squeeze_settled)
+    check("squeeze round still shows the winner badge",
+          page.eval_on_selector("#handBadge", "e=>e.classList.contains('on') && !!e.querySelector('.hb-letter')"),
+          page.eval_on_selector("#handBadge", "e=>e.className"))
+    page.wait_for_function("window.__bac.state.phase === 'betting'", timeout=10000)
     page.click("#infoBtn")
     page.wait_for_timeout(200)
     page.click("#optSqueeze + .sw")
@@ -653,11 +838,12 @@ def run_desktop(browser):
     page.wait_for_timeout(200)
     clear(page)
 
-    # ── live multipliers + celebration
+    # ── live multipliers + celebration (쪼기 없이 자동 오픈으로 진행)
     page.click("#infoBtn")
     page.wait_for_timeout(250)
-    page.click("#optSqueeze + .sw")
-    page.wait_for_timeout(150)
+    if page.eval_on_selector("#optSqueeze", "e=>e.checked"):
+        page.click("#optSqueeze + .sw")
+        page.wait_for_timeout(150)
     page.click("#modalClose")
     page.wait_for_timeout(200)
     page.evaluate("window.__bac.state.balance = 6000000; window.__bac.renderAll()")
@@ -665,19 +851,16 @@ def run_desktop(browser):
     ok = False
     for attempt in range(4):
         clear(page)
+        page.wait_for_function("window.__bac.state.phase === 'betting'", timeout=30000)
         page.click('#chipRow .chip[data-chip="50000"]')
         page.click('[data-spot="player"]')
         page.click('[data-spot="banker"]')
         page.click('[data-spot="playerBonus"]')
         deal_now(page)
-        page.wait_for_function("window.__bac.state.phase === 'reveal'", timeout=15000)
+        page.wait_for_function("window.__bac.state.hand && (window.__bac.state.phase === 'dealing' || window.__bac.state.phase === 'result')", timeout=12000)
         winner = page.evaluate("window.__bac.state.hand.winner")
         if winner == "tie":
-            for _ in range(4):
-                tclick(page, "#revealAllBtn")
-                page.wait_for_timeout(650)
-                if page.evaluate("window.__bac.state.phase") == "betting":
-                    break
+            page.wait_for_function("window.__bac.state.phase === 'betting'", timeout=20000)
             continue
         page.evaluate("""() => {
             const s = window.__bac.state; const h = s.hand;
@@ -687,26 +870,30 @@ def run_desktop(browser):
             s.bonus = picks.slice(0, 2).map((c, i) => Object.assign({}, c, { multiplier: i === 0 ? 8 : 5 }));
             window.__bac.renderBonusShowcase();
         }""")
-        page.wait_for_timeout(250)
-        for _ in range(4):
-            tclick(page, "#revealAllBtn")
-            page.wait_for_timeout(650)
-            if page.evaluate("window.__bac.state.phase") == "betting":
-                break
+        page.wait_for_function("window.__bac.state.phase === 'result'", timeout=15000)
+        page.wait_for_timeout(220)
         ok = True
         break
 
     check("bonus win scenario dealt", ok)
     if ok:
-        check("live multiplier chip", "×" in page.inner_text("#liveMult"), repr(page.inner_text("#liveMult")))
-        check("celebration shown", page.eval_on_selector("#celebrate", "e=>e.classList.contains('on')"))
         settled_mult = page.evaluate("window.__bac.state.history[window.__bac.state.history.length-1].mult")
+        check("bonus cards matched the winning hand", settled_mult >= 8, str(settled_mult))
+        check("live multiplier chip", "×" in page.inner_text("#liveMult"), repr(page.inner_text("#liveMult")))
+        check("petals fall on the winning bet zone",
+              page.evaluate("() => Array.from(document.querySelectorAll('.zone-fall')).some(z => z.querySelectorAll('.zf').length > 0)"),
+              str(page.eval_on_selector_all(".zone-fall .zf", "e=>e.length")))
+        check("celebration shown", page.eval_on_selector("#celebrate", "e=>e.classList.contains('on')"))
         check("celebration multiplier matches settlement", f"×{settled_mult}" in page.inner_text("#celMult"),
               f"×{settled_mult} vs {page.inner_text('#celMult')}")
+        check("result sheet shown with the bonus win", page.eval_on_selector("#result", "e=>e.classList.contains('on')"))
+        check("petals fall on the result sheet", page.eval_on_selector_all("#result .fx-fall .zf", "e=>e.length") > 0,
+              str(page.eval_on_selector_all("#result .fx-fall .zf", "e=>e.length")))
+        check("petals fall on the win banner", page.eval_on_selector_all("#celebrate .fx-fall .zf", "e=>e.length") > 0,
+              str(page.eval_on_selector_all("#celebrate .fx-fall .zf", "e=>e.length")))
         page.screenshot(path=os.path.join(ROOT, "preview-celebration.png"))
-        page.wait_for_timeout(3300)
-        check("result sheet shown after celebration", page.eval_on_selector("#result", "e=>e.classList.contains('on')"))
         tclick(page, "#resultClose")
+        page.wait_for_function("window.__bac.state.phase === 'betting'", timeout=10000)
 
     # back to fast mode
     page.click("#infoBtn")
@@ -801,10 +988,10 @@ def run_desktop(browser):
         page.click('#chipRow .chip[data-chip="50000"]')
         page.click('[data-spot="banker"]')
         deal_now(page)
-        page.wait_for_function("window.__bac.state.phase === 'betting'", timeout=25000)
-        page.wait_for_timeout(300)
-        tclick(page, "#resultClose")
+        page.wait_for_function("window.__bac.state.phase === 'result'", timeout=25000)
+        page.wait_for_timeout(350)
         page.screenshot(path=os.path.join(ROOT, f"preview-{mode}.png"))
+        page.wait_for_function("window.__bac.state.phase === 'betting'", timeout=15000)
 
     page.click('.mode-btn[data-mode="sakura"]')
     page.wait_for_timeout(400)
@@ -840,6 +1027,11 @@ def run_mobile(browser):
     check("mobile 3-stage vertical order", ok_order, str(boxes))
     check("dealer stage keeps height", boxes["dealer"][2] >= 180, str(boxes["dealer"]))
     check("roads always visible (no drawer)", boxes["roads"][2] >= 120, str(boxes["roads"]))
+
+    mclk = clock_probe(page)
+    check("mobile clock stays big", mclk["w"] >= 40 and mclk["inside"], str(mclk))
+    check("mobile clock is never covered", mclk["onTop"], str(mclk))
+    check("mobile clock number is legible", mclk["font"] >= 16, str(mclk["font"]))
 
     chip_row = page.evaluate("""() => {
       const row = document.querySelector('.chip-row').getBoundingClientRect();
@@ -938,20 +1130,50 @@ def run_mobile(browser):
     page.click("#clearBtn")
     page.wait_for_timeout(150)
 
+    # ── 한 번의 탭 = 한 번의 베팅 (pointerup + 합성 click 중복 방지)
+    page.click('#chipRow .chip[data-chip="1000"]')
+    before_tap = page.evaluate("window.__bac.state.bets.player")
+    page.evaluate("""() => {
+      const z = document.querySelector('[data-spot="player"]');
+      const r = z.getBoundingClientRect();
+      const x = r.left + r.width / 2, y = r.top + r.height / 2;
+      const base = {bubbles: true, cancelable: true, clientX: x, clientY: y, pointerId: 7,
+                    pointerType: 'touch', isPrimary: true, button: 0};
+      z.dispatchEvent(new PointerEvent('pointerdown', Object.assign({}, base, {buttons: 1})));
+      z.dispatchEvent(new PointerEvent('pointerup', Object.assign({}, base, {buttons: 0})));
+      z.dispatchEvent(new MouseEvent('click', {bubbles: true, cancelable: true, clientX: x, clientY: y}));
+    }""")
+    page.wait_for_timeout(200)
+    after_tap = page.evaluate("window.__bac.state.bets.player")
+    check("one tap places exactly one bet", after_tap - before_tap == 1000,
+          f"{before_tap} -> {after_tap}")
+    # 의도적인 빠른 2연타는 2회 베팅
+    page.click('[data-spot="player"]')
+    page.wait_for_timeout(140)
+    page.click('[data-spot="player"]')
+    page.wait_for_timeout(200)
+    after_two = page.evaluate("window.__bac.state.bets.player")
+    check("double tap still bets twice", after_two - before_tap == 3000, f"{before_tap} -> {after_two}")
+    page.click("#clearBtn")
+    page.wait_for_timeout(150)
+
     # ── deal + screenshots
     page.click('#chipRow .chip[data-chip="10000"]')
     page.click('[data-spot="banker"]')
     bal_before = page.evaluate("window.__bac.state.balance")
     deal_now(page)
-    page.wait_for_function("window.__bac.state.phase === 'betting'", timeout=25000)
-    page.wait_for_timeout(500)
+    page.wait_for_function("window.__bac.state.phase === 'result'", timeout=20000)
+    page.wait_for_timeout(400)
     mob = page.evaluate("""() => { const s = window.__bac.state;
         const r = BaccaratEngine.settleRound({bets: s.lastBets, result: s.hand, mode: s.mode, noCommission: s.settings.noCommission, bonus: s.bonus});
         return {balance: s.balance, returned: r.returned, hist: s.history.length, bonus: s.bonus.length}; }""")
     check("mobile balance math", mob["balance"] == bal_before + mob["returned"],
           f"{mob['balance']} vs {bal_before + mob['returned']}")
-    check("mobile bonus cards", 1 <= mob["bonus"] <= 5, str(mob["bonus"]))
+    check("mobile bonus cards", mob["bonus"] == 7, str(mob["bonus"]))
     check("mobile mini cards after deal", page.eval_on_selector_all(".mz-cards .mini-card", "e=>e.length") >= 4)
+    check("mobile 7 bonus slots fit without overflow",
+          page.eval_on_selector_all(".bs-slot", "e=>e.length") == 7 and
+          page.evaluate("document.documentElement.scrollWidth <= window.innerWidth"))
     check("mobile overflow after deal", page.evaluate("document.documentElement.scrollWidth <= window.innerWidth"))
     check("mobile no scroll after deal", page.evaluate("document.documentElement.scrollHeight <= window.innerHeight + 4"),
           page.evaluate("document.documentElement.scrollHeight"))

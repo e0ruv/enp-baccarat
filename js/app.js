@@ -231,6 +231,7 @@
     statusBalance: $('#statusBalance'),
     statusLimit: $('#statusLimit'),
     dealerView: $('#dealerView'),
+    dhLayer: $('#dhLayer'),
     matArea: $('#matArea'),
     matTip: $('#matTip'),
     shuffleVeil: $('#shuffleVeil'),
@@ -333,6 +334,9 @@
   };
 
   let roadView = 'bead';
+  /* Ask the road — 다음 판을 P/B로 가정한 미리보기 */
+  let previewSide = null;
+  let previewTimer = 0;
   let toastTimer = 0;
   let veilTimer = 0;
 
@@ -447,7 +451,29 @@
     [[el.predP, 'player'], [el.predB, 'banker']].forEach(([box, side]) => {
       if (!box) return;
       Array.from(box.querySelectorAll('i')).forEach((dot, i) => dot.classList.toggle('on', last[i] === side));
+      box.classList.toggle('is-on', previewSide === side);
+      box.setAttribute('aria-pressed', previewSide === side ? 'true' : 'false');
     });
+  }
+
+  /** P/B 예측 버튼 — 다음 칸 미리보기를 켜고 4초 뒤 자동 해제 */
+  function setPreview(side) {
+    previewSide = previewSide === side ? null : side;
+    clearTimeout(previewTimer);
+    previewTimer = 0;
+    if (previewSide) {
+      previewTimer = window.setTimeout(() => {
+        previewSide = null;
+        previewTimer = 0;
+        renderRoads();
+      }, 4000);
+    }
+    renderRoads();
+    renderPredict();
+    window.Sound && Sound.click();
+    if (previewSide) {
+      toast(previewSide === 'player' ? '다음 판 플레이어 가정 · 깜박이는 칸 미리보기' : '다음 판 뱅커 가정 · 깜박이는 칸 미리보기');
+    }
   }
 
   /* ───────────── render: mode ───────────── */
@@ -462,12 +488,12 @@
     if (S.mode === 'speed') {
       el.tableRule.textContent = '수수료 없음 · 타이 8:1 · 페어 11:1 · 0.35초 즉시 오픈';
     } else if (S.mode === 'sakura') {
-      el.tableRule.textContent = '벚꽃 카드 1–5장 · 2x ~ 8x 중첩 · 수수료 없음';
+      el.tableRule.textContent = '벚꽃 카드 7장 · 2x ~ 8x 중첩 · 수수료 없음';
       el.bonusIcon.textContent = '🌸';
       el.bonusTitle.textContent = '벚꽃 보너스';
       el.bonusNote.textContent = '딜 전 피어남';
     } else {
-      el.tableRule.textContent = '눈꽃 카드 1–5장 · 2x ~ 8x 중첩 · 수수료 없음';
+      el.tableRule.textContent = '눈꽃 카드 7장 · 2x ~ 8x 중첩 · 수수료 없음';
       el.bonusIcon.textContent = '❄️';
       el.bonusTitle.textContent = '눈꽃 보너스';
       el.bonusNote.textContent = '딜 전 결정';
@@ -506,6 +532,8 @@
       return;
     }
     refundAll(true);
+    clearTimeout(resultHoldTimer);
+    resultHoldTimer = 0;
     S.mode = mode;
     S.bonus = [];
     S.hand = null;
@@ -541,7 +569,7 @@
   // five fixed upright gold slots; revealed bonus cards fill them in order
   function buildBonusSlots() {
     el.bonusCards.innerHTML = '';
-    for (let i = 0; i < 5; i++) {
+    for (let i = 0; i < BONUS_SLOTS; i++) {
       const slot = document.createElement('div');
       slot.className = 'bs-slot';
       slot.innerHTML = '<span class="bs-slot-badge"></span><span class="bs-slot-face"></span>';
@@ -614,7 +642,53 @@
     }, 640);
   }
 
-  // dealer reaches into the shoe, a card flies from the shoe mouth onto the felt spot
+  // dealer reaches into the shoe, pulls a card and lays it on the felt spot
+  const HAND_BOX = { w: 160, h: 260 };
+  const HAND_ANCHOR = { x: 70, y: 26 }; // fingertip grip point inside the SVG box
+  const motionLog = [];
+
+  const HAND_BACK_SVG =
+    '<svg class="dh-hand dh-hand-back" viewBox="0 0 160 260" aria-hidden="true">' +
+      '<defs>' +
+        '<linearGradient id="dhGlove" x1=".2" y1="0" x2=".8" y2="1">' +
+          '<stop offset="0" stop-color="#FFFFFF"/><stop offset=".55" stop-color="#F3EBDE"/>' +
+          '<stop offset="1" stop-color="#CBBBA2"/>' +
+        '</linearGradient>' +
+        '<linearGradient id="dhCuffG" x1="0" y1="0" x2="1" y2="1">' +
+          '<stop offset="0" stop-color="#2C2F37"/><stop offset="1" stop-color="#08090C"/>' +
+        '</linearGradient>' +
+        '<linearGradient id="dhGoldG" x1="0" y1="0" x2="1" y2="1">' +
+          '<stop offset="0" stop-color="#F9EBC6"/><stop offset="1" stop-color="#B08332"/>' +
+        '</linearGradient>' +
+      '</defs>' +
+      '<path d="M62 136 L104 136 L124 246 Q126 256 116 256 L50 256 Q40 256 42 246 Z" fill="url(#dhCuffG)"/>' +
+      '<path d="M63 137 L103 137" stroke="url(#dhGoldG)" stroke-width="4" stroke-linecap="round"/>' +
+      '<path d="M52 84 Q52 58 82 56 Q112 58 112 88 L112 132 Q110 150 84 154 Q54 150 52 128 Z" fill="url(#dhGlove)" stroke="#C6B69C" stroke-width="1.3"/>' +
+      '<path d="M58 120 Q40 120 32 100 Q26 86 37 80 Q48 76 55 90 L64 108 Z" fill="url(#dhGlove)" stroke="#C6B69C" stroke-width="1.3"/>' +
+      '<path d="M60 86 Q82 74 106 86" stroke="#DFD2BB" stroke-width="2" fill="none"/>' +
+      '<path d="M64 100 Q82 92 104 100" stroke="#E7DCC9" stroke-width="1.4" fill="none"/>' +
+    '</svg>';
+
+  const HAND_FRONT_SVG =
+    '<svg class="dh-hand dh-hand-front" viewBox="0 0 160 260" aria-hidden="true">' +
+      '<g fill="#FBF6EC" stroke="#C6B69C" stroke-width="1.3">' +
+        '<rect x="47" y="20" width="15" height="68" rx="7.5" transform="rotate(-6 54 86)"/>' +
+        '<rect x="62" y="10" width="15" height="78" rx="7.5"/>' +
+        '<rect x="77" y="16" width="15" height="72" rx="7.5" transform="rotate(4 84 86)"/>' +
+        '<rect x="92" y="34" width="13" height="54" rx="6.5" transform="rotate(9 98 86)"/>' +
+      '</g>' +
+      '<rect x="77" y="52" width="15" height="6" rx="3" fill="url(#dhGoldG)" transform="rotate(4 84 86)"/>' +
+      '<path d="M50 30 Q53 24 57 30" stroke="#E2D6C1" stroke-width="1.2" fill="none"/>' +
+      '<path d="M68 18 Q71 12 75 18" stroke="#E2D6C1" stroke-width="1.2" fill="none"/>' +
+      '<path d="M85 24 Q88 18 92 24" stroke="#E2D6C1" stroke-width="1.2" fill="none"/>' +
+      '<path d="M101 46 Q104 41 107 46" stroke="#E2D6C1" stroke-width="1.1" fill="none"/>' +
+    '</svg>';
+
+  function clearDealerHand() {
+    if (!el.dhLayer) return;
+    $$('.dh-grip', el.dhLayer).forEach((n) => n.remove());
+  }
+
   async function dealerDraw(side, node, fast) {
     const shoe = $('#shoeEl');
     if (el.dealer) {
@@ -630,34 +704,129 @@
     armRest();
 
     const target = centerOf(node);
-    const from = centerOf(shoe && (shoe.querySelector('.sh-mouth') || shoe)) || target;
-    if (!target || !from || !el.fxLayer) return;
-    if (fast && !window.__BACCARAT_FLY) return;
+    const mouthEl = shoe && (shoe.querySelector('.sh-mouth') || shoe);
+    const mouth = centerOf(mouthEl);
+    const layer = el.dhLayer;
+    if (!target || !mouth || !layer || window.__BACCARAT_FLY === false) return;
+    if (!('animate' in Element.prototype)) return;
 
-    const ghost = document.createElement('div');
-    ghost.className = 'fly-card';
-    ghost.style.width = target.w + 'px';
-    ghost.style.height = target.h + 'px';
-    ghost.style.left = '0px';
-    ghost.style.top = '0px';
-    el.fxLayer.appendChild(ghost);
+    // one hand at a time
+    clearDealerHand();
 
-    const x0 = from.x - target.w / 2;
-    const y0 = from.y - target.h / 2;
-    const x1 = target.x - target.w / 2;
-    const y1 = target.y - target.h / 2;
-    const lift = Math.min(70, Math.abs(y1 - y0) * 0.5 + 24);
-    const dur = fast ? 130 : 330;
+    const lr = layer.getBoundingClientRect();
+    const cardW = target.w;
+    const cardH = target.h;
+    const handW = Math.round(clamp(cardW * 2.15, 62, 132));
+    const handH = Math.round(handW * (HAND_BOX.h / HAND_BOX.w));
+    const ax = HAND_ANCHOR.x / HAND_BOX.w * handW;
+    const ay = HAND_ANCHOR.y / HAND_BOX.h * handH;
+    const cardOffY = cardH * 0.34; // card centre sits just below the fingertips
 
-    const anim = ghost.animate([
-      { transform: `translate(${x0}px, ${y0}px) rotate(-10deg) scale(.82)`, opacity: 0 },
-      { transform: `translate(${x0}px, ${y0}px) rotate(-6deg) scale(.9)`, opacity: 1, offset: .12 },
-      { transform: `translate(${(x0 + x1) / 2}px, ${Math.min(y0, y1) - lift}px) rotate(12deg) scale(1.06)`, opacity: 1, offset: .5 },
-      { transform: `translate(${x1}px, ${y1}px) rotate(0deg) scale(1)`, opacity: 1 }
-    ], { duration: dur, easing: 'cubic-bezier(.3,.7,.25,1)', fill: 'forwards' });
+    const start = { x: mouth.x - lr.left - cardW * 0.30, y: mouth.y - lr.top - cardOffY };
+    const end = { x: target.x - lr.left, y: target.y - lr.top - cardOffY };
+    // 딜러 손은 테이블 뒤(위쪽)에서 내려와 슈에 닿은 뒤 카드를 집습니다
+    const off = { x: start.x + cardW * 0.9 + 58, y: start.y - 130 };
+    const approach = { x: start.x + cardW * 0.35 + 10, y: start.y - 74 };
 
-    try { await anim.finished; } catch (err) { /* animation cancelled */ }
-    ghost.remove();
+    const grip = document.createElement('div');
+    grip.className = 'dh-grip';
+    grip.dataset.side = side;
+    grip.style.width = '0px';
+    grip.style.height = '0px';
+
+    const card = document.createElement('div');
+    card.className = 'dh-card';
+    card.style.width = cardW + 'px';
+    card.style.height = cardH + 'px';
+    card.style.left = (-cardW / 2) + 'px';
+    card.style.top = (-cardH * 0.16) + 'px';
+    card.style.transformOrigin = '50% 34%';
+
+    const pair = document.createElement('div');
+    pair.className = 'dh-handpair';
+    pair.style.transformOrigin = ax + 'px ' + ay + 'px';
+    pair.innerHTML = HAND_BACK_SVG + HAND_FRONT_SVG;
+    $$('.dh-hand', pair).forEach((svg) => {
+      svg.style.width = handW + 'px';
+      svg.style.height = handH + 'px';
+      svg.style.left = (-ax) + 'px';
+      svg.style.top = (-ay) + 'px';
+    });
+
+    grip.appendChild(card);
+    grip.appendChild(pair);
+    layer.appendChild(grip);
+
+    const total = fast ? 300 : 440;
+    const lift = Math.min(52, Math.abs(end.y - start.y) * 0.6 + 18);
+    const midX = start.x + (end.x - start.x) * 0.5;
+    const midY = Math.min(start.y, end.y) - lift;
+
+    // 0~36% 접근 → 40% 슈에서 집기 → 70% 운반 → 92% 내려놓기
+    const motion = grip.animate([
+      { transform: `translate3d(${off.x}px, ${off.y}px, 0) scale(.8)`, opacity: 0, offset: 0 },
+      { transform: `translate3d(${approach.x}px, ${approach.y}px, 0) scale(.98)`, opacity: 1, offset: .18 },
+      { transform: `translate3d(${start.x + 4}px, ${start.y - 5}px, 0) scale(1)`, opacity: 1, offset: .32 },
+      { transform: `translate3d(${start.x}px, ${start.y}px, 0) scale(1.02)`, opacity: 1, offset: .40 },
+      { transform: `translate3d(${midX}px, ${midY}px, 0) scale(1.05)`, opacity: 1, offset: .70 },
+      { transform: `translate3d(${end.x}px, ${end.y - 4}px, 0) scale(1.02)`, opacity: 1, offset: .92 },
+      { transform: `translate3d(${end.x}px, ${end.y}px, 0) scale(1)`, opacity: 1, offset: 1 }
+    ], { duration: total, easing: 'cubic-bezier(.32,.72,.3,1)', fill: 'forwards' });
+
+    // 카드는 슈에서 집는 순간부터 보입니다
+    card.animate([
+      { opacity: 0, offset: 0 },
+      { opacity: 0, offset: .37 },
+      { opacity: 1, offset: .44 },
+      { opacity: 1, offset: 1 }
+    ], { duration: total, fill: 'forwards' });
+
+    const tilt = pair.animate([
+      { transform: 'rotate(-96deg)', offset: 0 },
+      { transform: 'rotate(-92deg)', offset: .32 },
+      { transform: 'rotate(-80deg)', offset: .42 },
+      { transform: 'rotate(-58deg)', offset: .72 },
+      { transform: 'rotate(-34deg)', offset: 1 }
+    ], { duration: total, easing: 'cubic-bezier(.35,.7,.3,1)', fill: 'forwards' });
+
+    // shoe mouth flashes as the card is pulled out
+    if (mouthEl) {
+      const spark = document.createElement('span');
+      spark.className = 'dh-spark';
+      spark.style.left = (mouth.x - lr.left) + 'px';
+      spark.style.top = (mouth.y - lr.top) + 'px';
+      layer.appendChild(spark);
+      window.setTimeout(() => spark.remove(), 520);
+    }
+
+    motionLog.push({
+      side,
+      fast: !!fast,
+      from: [Math.round(start.x), Math.round(start.y)],
+      to: [Math.round(end.x), Math.round(end.y)],
+      ms: total,
+      hand: true
+    });
+    if (motionLog.length > 16) motionLog.shift();
+
+    try { await motion.finished; } catch (err) { /* cancelled */ }
+
+    // card lands: the real card takes over while the hand withdraws
+    node.classList.remove('is-pending');
+    node.classList.add('landed');
+    try {
+      grip.animate([
+        { opacity: 1 },
+        { opacity: 0 }
+      ], { duration: 130, easing: 'ease-out', fill: 'forwards' });
+      pair.animate([
+        { transform: 'rotate(-38deg)' },
+        { transform: 'rotate(-16deg) translate3d(12px, -8px, 0)' }
+      ], { duration: 150, easing: 'ease-out', fill: 'forwards' });
+      card.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 90, fill: 'forwards' });
+    } catch (err) { /* older browsers */ }
+    window.setTimeout(() => grip.remove(), 170);
+    try { await tilt.finished; } catch (err) { /* cancelled */ }
   }
 
   // golden light beam from a bonus slot to the matched table card
@@ -713,6 +882,7 @@
   }
 
   function clearTable() {
+    clearDealerHand();
     el.playerCards.innerHTML = '';
     el.bankerCards.innerHTML = '';
     if (el.playerTotal) el.playerTotal.innerHTML = '<i>0</i>';
@@ -744,8 +914,9 @@
       const box = $(`[data-mini="${side}"]`);
       if (!box) continue;
       const nodes = $$('.card', containerFor(side));
+      const prev = box.childElementCount;
       box.innerHTML = '';
-      nodes.forEach((node) => {
+      nodes.forEach((node, i) => {
         const card = node._card;
         if (!card) return;
         const d = document.createElement('span');
@@ -757,6 +928,7 @@
           d.className = 'mini-card' + (red ? ' red' : '');
           d.innerHTML = `<b>${card.rank}</b><i>${SYM[card.suit]}</i>`;
         }
+        if (i < prev) d.style.animation = 'none';
         box.appendChild(d);
       });
     }
@@ -959,6 +1131,7 @@
 
   async function bonusRound(cfg) {
     const cards = E.createBonusCards(cfg.bonus);
+    boostBonusCards(cards, cfg);
     S.bonus = cards;
     const slots = buildBonusSlots();
     el.bonusNote.textContent = '공개 중…';
@@ -1009,6 +1182,28 @@
     await sleep(160);
   }
 
+  /**
+   * 배당이 조금 더 자주 붙도록, 가끔(약 40%) 다음 카드 중 한 장과 같은 보너스 카드를 섞습니다.
+   * 게임 규칙(랭크+무늬 일치)은 그대로이고 히트 빈도만 살짝 보정합니다.
+   */
+  function boostBonusCards(cards, cfg) {
+    if (!cards || !cards.length || !cfg || !cfg.bonus) return;
+    if (S.shoe.cards.length < 8) return;
+    if (Math.random() > 0.4) return;
+    const peek = S.shoe.cards.slice(-6);
+    if (!peek.length) return;
+    const pick = peek[Math.floor(Math.random() * peek.length)];
+    if (!pick || cards.some((c) => c.id === pick.id)) return;
+    const mults = cfg.bonus.multipliers;
+    const idx = Math.floor(Math.random() * cards.length);
+    cards[idx] = {
+      rank: pick.rank,
+      suit: pick.suit,
+      id: pick.id,
+      multiplier: mults[Math.floor(Math.random() * mults.length)]
+    };
+  }
+
   /* ───────────── deal ───────────── */
   function sequenceOf(result) {
     const seq = [];
@@ -1031,6 +1226,12 @@
     clockLeft = CLOCK_SECONDS;
     clearInterval(clockTimer);
     paintClock();
+    if (previewSide) {
+      previewSide = null;
+      clearTimeout(previewTimer);
+      previewTimer = 0;
+      renderRoads();
+    }
     if (stakeIn > 0) S.lastBets = Object.assign(emptyBets(), S.bets);
     S.stack = [];
     S.bonus = [];
@@ -1087,6 +1288,7 @@
       node.classList.remove('is-pending');
       node.classList.add('landed');
       window.Sound && Sound.card();
+      renderMiniCards();
 
       if (squeeze) {
         makePeekable(node);
@@ -1094,6 +1296,7 @@
         await sleep(fast ? 22 : 100);
         node.classList.add('up');
         window.Sound && Sound.flip();
+        updateTotals();
         sparkIfHit(node, step.card);
         updateLiveMults();
       }
@@ -1120,6 +1323,7 @@
       node.classList.remove('is-pending');
       node.classList.add('landed');
       window.Sound && Sound.card();
+      renderMiniCards();
 
       if (squeeze) {
         makePeekable(node);
@@ -1127,6 +1331,7 @@
         await sleep(fast ? 22 : 100);
         node.classList.add('up');
         window.Sound && Sound.flip();
+        updateTotals();
         sparkIfHit(node, step.card);
         updateLiveMults();
       }
@@ -1218,6 +1423,8 @@
       if (slot) slot.classList.add('is-hit');
       beamToCard(slot, node, hit.multiplier);
     }
+    const sideZone = node.closest('#playerCards') ? 'player' : node.closest('#bankerCards') ? 'banker' : null;
+    if (sideZone) fallOnZone(sideZone);
   }
 
   function updateLiveMults() {
@@ -1252,6 +1459,59 @@
     ).join('');
   }
 
+  /* ───────────── 보너스 배당 낙화 (벚꽃잎 · 눈송이) ───────────── */
+  function petalsOn() {
+    return S.mode === 'sakura' ? ['🌸', '🌸', '❀', '🌸'] : S.mode === 'snow' ? ['❄', '❅', '❆', '❄'] : null;
+  }
+
+  function spawnFall(layer, n, spread) {
+    const glyphs = petalsOn();
+    if (!glyphs || !layer) return;
+    const frag = document.createDocumentFragment();
+    for (let i = 0; i < n; i++) {
+      const s = document.createElement('span');
+      s.className = 'zf';
+      s.textContent = glyphs[i % glyphs.length];
+      s.style.setProperty('--x', (5 + Math.random() * 90).toFixed(1) + '%');
+      s.style.setProperty('--sz', (7 + Math.random() * (spread ? 9 : 7)).toFixed(1) + 'px');
+      s.style.setProperty('--d', (1.05 + Math.random() * 0.9).toFixed(2) + 's');
+      s.style.setProperty('--dl', (Math.random() * 0.65).toFixed(2) + 's');
+      s.style.setProperty('--sw', (Math.random() * 26 - 13).toFixed(1) + 'px');
+      s.style.setProperty('--rot', (80 + Math.random() * 220).toFixed(0) + 'deg');
+      frag.appendChild(s);
+    }
+    layer.innerHTML = '';
+    layer.appendChild(frag);
+    clearTimeout(layer._t);
+    layer._t = window.setTimeout(() => { layer.innerHTML = ''; }, 2800);
+  }
+
+  /** 베팅 칸 위로 낙화 */
+  function fallOnZone(spot) {
+    if (!petalsOn() || !S.bonus || !S.bonus.length) return;
+    const zone = document.querySelector(`[data-spot="${spot}"]`);
+    if (!zone) return;
+    let layer = $('.zone-fall', zone);
+    if (!layer) {
+      layer = document.createElement('div');
+      layer.className = 'zone-fall';
+      zone.appendChild(layer);
+    }
+    spawnFall(layer, 9, false);
+  }
+
+  /** 당첨 배너·결과 시트 위로 낙화 */
+  function fallOnPanel(panel, n) {
+    if (!petalsOn() || !panel) return;
+    let layer = $('.fx-fall', panel);
+    if (!layer) {
+      layer = document.createElement('div');
+      layer.className = 'fx-fall';
+      panel.appendChild(layer);
+    }
+    spawnFall(layer, n, true);
+  }
+
   function celebrate(settled) {
     if (!el.celebrate) return;
     if (!(settled.bestMultiplier > 1) || settled.net <= 0) return;
@@ -1261,6 +1521,7 @@
     el.celAmount.textContent = wonSign(settled.net);
     el.celebrate.classList.add('on');
     if (window.FX) FX.burst();
+    fallOnPanel(el.celebrate, 22);
     clearTimeout(celebTimer);
     celebTimer = window.setTimeout(() => el.celebrate.classList.remove('on'), 2800);
   }
@@ -1306,8 +1567,18 @@
     }
     if (el.handBadge) {
       const letter = result.winner === 'player' ? 'P' : result.winner === 'banker' ? 'B' : 'T';
+      const label = result.winner === 'player' ? 'PLAYER WIN' : result.winner === 'banker' ? 'BANKER WIN' : 'TIE';
       el.handBadge.className = 'hand-badge';
-      el.handBadge.textContent = letter;
+      el.handBadge.textContent = '';
+      const lb = document.createElement('b');
+      lb.className = 'hb-letter';
+      lb.textContent = letter;
+      const tg = document.createElement('span');
+      tg.className = 'hb-label';
+      tg.textContent = label;
+      el.handBadge.appendChild(lb);
+      el.handBadge.appendChild(tg);
+      el.handBadge.setAttribute('aria-label', label);
       void el.handBadge.offsetWidth;
       el.handBadge.className = 'hand-badge on ' + letter.toLowerCase();
     }
@@ -1318,9 +1589,8 @@
     const hadBets = betSpots.length > 0;
     S.bets = emptyBets();
     S.stack = [];
-    S.phase = 'betting';
-    startRoundClock(true);
-    if (el.feltStatus) el.feltStatus.textContent = 'PLACE YOUR BETS';
+    S.phase = 'result';
+    if (el.feltStatus) el.feltStatus.textContent = 'RESULT';
 
     renderBalance();
     renderStats();
@@ -1342,38 +1612,76 @@
       }
     }
 
-    if (hadBets) {
+    // 이겼거나 푸시(당첨금·환급 발생)일 때만 결과 시트를 띄웁니다.
+    // 잃은 라운드는 가운데 승리 배지(P/B/T)만 보여주고 조용히 다음 라운드로 넘어갑니다.
+    const showSheet = hadBets && (settled.net > 0 || settled.returned > 0);
+    if (showSheet) {
       showResult(settled, result, betSpots);
-      celebrate(settled);
     } else {
       el.result.classList.remove('on');
       clearTimeout(resultTimer);
     }
+    if (hadBets) celebrate(settled);
     updateLiveMults();
 
-    // speed table auto rebet
-    if (MODES[S.mode].id === 'speed' && S.settings.autoRebet) {
-      const prev = S.lastBets;
-      if (prev && Object.values(prev).some((v) => v > 0)) {
-        clearTimeout(S.autoTimer);
-        S.autoTimer = setTimeout(() => {
-          if (S.phase !== 'betting' || totalStake() > 0) return;
-          for (const spot of Object.keys(prev)) {
-            const amt = prev[spot];
-            if (!amt) continue;
-            const fee = feeFor(amt);
-            if (amt + fee > S.balance) return;
-            S.balance -= amt + fee;
-            S.bets[spot] = amt;
-            S.stack.push({ spot, amount: amt, fee });
-          }
-          toast('자동 재베팅 준비');
-          renderBalance();
-          renderBetState();
-          save();
-        }, 700);
-      }
+    // 보너스 배당이 붙은 베팅 칸에는 벚꽃/눈꽃을 뿌린다
+    for (const item of settled.items) {
+      if (item.outcome === 'win' && item.multiplier > 1) fallOnZone(item.spot);
     }
+
+    holdResult(showSheet, settled);
+  }
+
+  /* ───────────── result hold → clean table → new 10s round ───────────── */
+  function holdResult(showSheet, settled) {
+    clearTimeout(resultHoldTimer);
+    const cfg = MODES[S.mode];
+    const bigWin = !!(settled && settled.bestMultiplier > 1 && settled.net > 0);
+    const base = showSheet ? (RESULT_HOLD_MS[cfg.id] || 2600) : 1400;
+    resultHoldTimer = window.setTimeout(endResultHold, base + (bigWin ? 1200 : 0));
+    if (el.feltStatus) el.feltStatus.textContent = bigWin ? 'BONUS HIT' : 'RESULT';
+    renderBetState();
+    paintClock();
+  }
+
+  /** 결과 표시 종료: 테이블을 깨끗하게 비우고 새 라운드 10초 카운트다운 시작 */
+  function endResultHold() {
+    clearTimeout(resultHoldTimer);
+    resultHoldTimer = 0;
+    if (S.phase !== 'result') return;
+    el.result.classList.remove('on');
+    clearTimeout(resultTimer);
+    clearTable();
+    if (el.feltStatus) el.feltStatus.textContent = 'PLACE YOUR BETS';
+    S.phase = 'betting';
+    clockLeft = CLOCK_SECONDS;
+    startRoundClock(true);
+    renderBetState();
+    scheduleAutoRebet();
+  }
+
+  /** 스피드 테이블 자동 재베팅 — 새 라운드가 시작된 뒤 지난 베팅을 다시 건다 */
+  function scheduleAutoRebet() {
+    if (MODES[S.mode].id !== 'speed' || !S.settings.autoRebet) return;
+    const prev = S.lastBets;
+    if (!prev || !Object.values(prev).some((v) => v > 0)) return;
+    clearTimeout(S.autoTimer);
+    S.autoTimer = setTimeout(() => {
+      if (S.phase !== 'betting' || totalStake() > 0) return;
+      for (const spot of Object.keys(prev)) {
+        const amt = prev[spot];
+        if (!amt) continue;
+        const fee = feeFor(amt);
+        if (amt + fee > S.balance) return;
+        S.balance -= amt + fee;
+        S.bets[spot] = amt;
+        S.stack.push({ spot, amount: amt, fee });
+      }
+      toast('자동 재베팅 준비');
+      renderBalance();
+      renderBetState();
+      save();
+    }, 500);
   }
 
   function showResult(settled, result, betSpots) {
@@ -1410,11 +1718,10 @@
     const bigWin = settled.bestMultiplier > 1 && settled.net > 0;
     clearTimeout(resultTimer);
     // the big-win celebration (fixed overlay) plays above the result card,
-    // so the card can be mounted immediately and stay until dismissed.
-    resultTimer = setTimeout(() => {
-      el.result.classList.add('on');
-      resultTimer = setTimeout(() => el.result.classList.remove('on'), bigWin ? 8000 : 5500);
-    }, 0);
+    // so the card can be mounted immediately and stay until the round closes.
+    el.result.classList.add('on');
+    el.result.classList.toggle('is-big', bigWin);
+    if (bigWin) fallOnPanel(el.result, 14);
 
     if (settled.net > 0) pulseNode($('#balancePill'));
   }
@@ -1481,7 +1788,22 @@
       cells.push(last);
     }
 
-    const visible = cells.slice(-140);
+    // Ask the road: next-round preview cell
+    let previewCell = null;
+    if (previewSide) {
+      const lastReal = cells[cells.length - 1];
+      let pos;
+      if (!lastReal) pos = { c: 0, r: 0 };
+      else if (previewSide === lastReal.winner) {
+        pos = lastReal.r < 5 ? { c: lastReal.c, r: lastReal.r + 1 } : { c: lastReal.c + 1, r: lastReal.r };
+      } else {
+        pos = { c: lastReal.c + 1, r: 0 };
+      }
+      previewCell = { c: pos.c, r: pos.r, winner: previewSide, preview: true };
+    }
+
+    const allCells = previewCell ? cells.concat([previewCell]) : cells;
+    const visible = allCells.slice(-140);
     const maxC = visible.reduce((m, c) => Math.max(m, c.c), 0);
     const boardW = el.bigroad.clientWidth || 320;
     const COLS = Math.max(9, Math.floor(boardW / 19));
@@ -1501,7 +1823,11 @@
         d.className = 'br-cell' + (cell ? (cell.winner === 'player' ? ' p' : ' b') : '');
         d.style.gridColumn = String(c);
         d.style.gridRow = String(r);
-        if (cell) {
+        if (cell && cell.preview) {
+          d.classList.add('is-preview');
+          d.dataset.pv = cell.winner === 'player' ? 'P' : 'B';
+        }
+        if (cell && !cell.preview) {
           const rim = document.createElement('span');
           rim.className = 'rim';
           rim.textContent = cell.winner === 'player' ? 'P' : 'B';
@@ -1523,14 +1849,16 @@
     }
     el.bigroad.appendChild(frag);
 
-    // ── 중국점 1·2·3군
-    const derived = E.derivedRoads(hist);
-    paintMiniRoad(el.roadEye, derived.eye);
-    paintMiniRoad(el.roadSmall, derived.small);
-    paintMiniRoad(el.roadCock, derived.cock);
+    // ── 중국점 1·2·3군 (미리보기 중에는 다음 판을 가정한 출목표)
+    const derivedHist = previewSide ? hist.concat([{ winner: previewSide }]) : hist;
+    const derived = E.derivedRoads(derivedHist);
+    const lastMark = (arr) => (previewSide && arr && arr.length ? arr[arr.length - 1] : null);
+    paintMiniRoad(el.roadEye, derived.eye, lastMark(derived.eye));
+    paintMiniRoad(el.roadSmall, derived.small, lastMark(derived.small));
+    paintMiniRoad(el.roadCock, derived.cock, lastMark(derived.cock));
   }
 
-  function paintMiniRoad(box, marks) {
+  function paintMiniRoad(box, marks, pvMark) {
     if (!box) return;
     box.innerHTML = '';
     const boxW = box.clientWidth || 90;
@@ -1551,6 +1879,7 @@
         d.className = 'mr-cell' + (k ? ' mr-dot ' + k.kind : '');
         d.style.gridColumn = String(c);
         d.style.gridRow = String(r);
+        if (k && k === pvMark) d.classList.add('is-preview');
         if (k) d.appendChild(document.createElement('i'));
         frag.appendChild(d);
       }
@@ -1660,8 +1989,12 @@
   }
 
   /* ───────────── round clock · 라이브 테이블 자동 진행 ───────────── */
-  const CLOCK_SECONDS = 20;
+  const BONUS_SLOTS = 7;
+  const CLOCK_SECONDS = 10;
   const SQUEEZE_TIMEOUT = 20000;
+  /** 정산 후 결과를 보여주는 시간(이후 테이블을 비우고 새 10초 카운트다운 시작) */
+  const RESULT_HOLD_MS = { speed: 2300, sakura: 2700, snow: 2700 };
+  let resultHoldTimer = 0;
   let clockLeft = CLOCK_SECONDS;
   let clockTimer = 0;
 
@@ -1678,8 +2011,11 @@
     el.roundClock.style.setProperty('--deg', (k * 360).toFixed(1) + 'deg');
     const betting = S.phase === 'betting';
     if (el.clockNum) el.clockNum.textContent = betting ? String(Math.max(0, clockLeft)) : '·';
-    el.roundClock.classList.toggle('is-urgent', betting && clockLeft <= 5);
+    el.roundClock.classList.toggle('is-warm', betting && clockLeft <= 5 && clockLeft > 3);
+    el.roundClock.classList.toggle('is-urgent', betting && clockLeft <= 3);
     el.roundClock.classList.toggle('is-idle', !betting || tablePaused());
+    el.roundClock.setAttribute('aria-label',
+      betting ? `베팅 마감까지 ${Math.max(0, clockLeft)}초` : '베팅 마감');
   }
 
   function startRoundClock(reset) {
@@ -1710,6 +2046,8 @@
   let moveState = null;
   let ghostEl = null;
   let suppressTap = false;
+  /** 마지막으로 포인터 탭을 처리한 시각 — 직후에 오는 합성 click을 무시해 이중 베팅을 막습니다 */
+  let lastPointerTap = 0;
 
   function zoneAtPoint(x, y) {
     const node = document.elementFromPoint(x, y);
@@ -1811,17 +2149,19 @@
         }
         if (cancelled) return;
         placeBet(ms.spot, S.chip);
-        suppressTap = true;
-        setTimeout(() => { suppressTap = false; }, 0);
+        lastPointerTap = Date.now();
       };
 
       zone.addEventListener('pointerup', (ev) => finish(ev, false));
       zone.addEventListener('pointercancel', (ev) => finish(ev, true));
 
-      // keyboard / programmatic fallback (a real pointer tap is already handled above)
+      // 키보드·프로그램 호출용 폴백. 실제 포인터 탭은 pointerup에서 이미 베팅했으므로
+      // 그 직후 브라우저가 합성하는 click은 무시합니다(모바일 이중 베팅 방지).
       zone.addEventListener('click', (ev) => {
         ev.preventDefault();
         if (suppressTap) return;
+        if (Date.now() - lastPointerTap < 700) return;
+        if (ev.detail > 0 && ev.sourceCapabilities && ev.sourceCapabilities.firesTouchEvents) return;
         placeBet(spot, S.chip);
       });
     });
@@ -1946,6 +2286,8 @@
       clearTimeout(resetTimer);
       el.modalReset.textContent = '잔액 초기화';
       refundAll(true);
+      clearTimeout(resultHoldTimer);
+      resultHoldTimer = 0;
       S.balance = START_BALANCE;
       S.stats = { hands: 0, player: 0, banker: 0, tie: 0, playerPair: 0, bankerPair: 0, wagered: 0, profit: 0 };
       S.history = [];
@@ -1967,7 +2309,11 @@
     el.resultClose.addEventListener('click', () => {
       el.result.classList.remove('on');
       clearTimeout(resultTimer);
+      if (S.phase === 'result') endResultHold();
     });
+
+    if (el.predP) el.predP.addEventListener('click', (ev) => { ev.preventDefault(); setPreview('player'); });
+    if (el.predB) el.predB.addEventListener('click', (ev) => { ev.preventDefault(); setPreview('banker'); });
 
     if (el.roadTabs) {
       el.roadTabs.addEventListener('click', (ev) => {
@@ -2502,6 +2848,9 @@
       refill,
       revealAll,
       finishHand,
+      motionLog,
+      setPreview,
+      get preview() { return previewSide; },
       renderAll,
       renderBonusShowcase() { renderBonusResult(); updateLiveMults(); }
     };

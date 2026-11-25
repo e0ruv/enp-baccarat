@@ -153,12 +153,15 @@
         <div class="live-mult" id="liveMult"></div>
       </div>
 
+      <div class="dh-layer" id="dhLayer" aria-hidden="true"></div>
+
       <div class="score-badge sb-p" id="playerTotal"><i>0</i></div>
       <div class="score-badge sb-b" id="bankerTotal"><i>0</i></div>
-      <div class="hand-badge" id="handBadge" aria-hidden="true"></div>
+      <div class="hand-badge" id="handBadge" aria-hidden="true"><b class="hb-letter"></b><span class="hb-label"></span></div>
 
       <div class="round-clock" id="roundClock" aria-label="베팅 카운트다운">
-        <span class="rc-num" id="clockNum">20</span>
+        <span class="rc-ring" aria-hidden="true"></span>
+        <span class="rc-num" id="clockNum">10</span>
       </div>
 
       <div class="bonus-rail" id="bonusStrip">
@@ -207,8 +210,8 @@
         <span class="sp p"><i>P</i><b id="statP">0</b></span>
         <span class="sp b"><i>B</i><b id="statB">0</b></span>
         <span class="sp t"><i>T</i><b id="statT">0</b></span>
-        <span class="pred p" id="predP"><i></i><i></i><i></i><em>/</em></span>
-        <span class="pred b" id="predB"><i></i><i></i><i></i><em>/</em></span>
+        <button type="button" class="pred p" id="predP" aria-pressed="false" title="다음 판을 플레이어로 가정해 출목표에 미리보기"><i></i><i></i><i></i><em>/</em></button>
+        <button type="button" class="pred b" id="predB" aria-pressed="false" title="다음 판을 뱅커로 가정해 출목표에 미리보기"><i></i><i></i><i></i><em>/</em></button>
         <span class="road-count" id="roadCount" hidden>0</span>
       </div>
     </section>
