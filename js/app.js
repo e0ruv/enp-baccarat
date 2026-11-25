@@ -1,0 +1,2079 @@
+/* ══════════════════════════════════════════════════════════════
+   ENP BACCARAT — App
+   4 tables · virtual money · Lighthouse/Lightning/Sakura/Snow FX
+   ══════════════════════════════════════════════════════════════ */
+(function () {
+  'use strict';
+
+  const E = window.BaccaratEngine;
+  const MODES = E.MODES;
+  const SYM = E.SUIT_SYMBOL;
+
+  const CHIPS = [1000, 5000, 10000, 50000, 100000, 500000];
+  const MAX_CHIP = 5000000;
+  const START_BALANCE = 1000000;
+  const LS_KEY = 'enp_baccarat_v1';
+
+  const $ = (s, r = document) => r.querySelector(s);
+  const $$ = (s, r = document) => Array.from(r.querySelectorAll(s));
+  const sleep = (ms) => new Promise((res) => setTimeout(res, ms));
+  const won = (n) => '₩' + Math.round(n).toLocaleString('ko-KR');
+  const wonSign = (n) => (n > 0 ? '+' : n < 0 ? '-' : '') + '₩' + Math.abs(Math.round(n)).toLocaleString('ko-KR');
+  const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+  const signed = (n) => Math.round(n).toLocaleString('ko-KR');
+  const chipLabel = (n) => {
+    const v = Math.round(n);
+    if (v >= 100000000) return (v / 100000000).toFixed(v % 100000000 ? 1 : 0) + '억';
+    if (v >= 10000) return (v / 10000).toFixed(v % 10000 ? 1 : 0).replace(/\.0$/, '') + '만';
+    if (v >= 1000) return Math.round(v / 1000) + '천';
+    return String(v);
+  };
+
+  const SPOT_LABEL = {
+    player: '플레이어',
+    banker: '뱅커',
+    tie: '타이',
+    playerPair: '플레이어 페어',
+    bankerPair: '뱅커 페어'
+  };
+  const SPOT_KEY = {
+    player: 'p',
+    banker: 'b',
+    tie: 't',
+    playerPair: 'pp',
+    bankerPair: 'bp'
+  };
+
+  /* ───────────── profiles & storage ───────────── */
+  const emptyBets = () => ({ player: 0, banker: 0, tie: 0, playerPair: 0, bankerPair: 0 });
+
+  const DB_KEY = 'enp_baccarat_accounts_v1';
+  const LEGACY_KEY = 'enp_baccarat_v1';
+
+  const freshStats = () => ({ hands: 0, player: 0, banker: 0, tie: 0, playerPair: 0, bankerPair: 0, wagered: 0, profit: 0 });
+  const freshProfile = (id, nick) => ({
+    id,
+    nick: nick || '',
+    balance: START_BALANCE,
+    stats: freshStats(),
+    history: [],
+    lastBets: null,
+    createdAt: Date.now()
+  });
+
+  function loadDB() {
+    const db = {
+      users: {},
+      current: null,
+      guest: freshProfile('guest', '게스트'),
+      settings: { sound: true, squeeze: false, noCommission: false, autoRebet: false },
+      chip: 10000,
+      mode: 'sakura',
+      admin: { repo: '', pat: '' }
+    };
+    try {
+      const raw = localStorage.getItem(DB_KEY);
+      if (raw) {
+        const saved = JSON.parse(raw);
+        if (saved && typeof saved === 'object') {
+          if (saved.users && typeof saved.users === 'object') db.users = saved.users;
+          db.current = typeof saved.current === 'string' ? saved.current : null;
+          if (saved.guest) Object.assign(db.guest, saved.guest);
+          if (saved.settings) Object.assign(db.settings, saved.settings);
+          if (Number.isFinite(saved.chip)) db.chip = saved.chip;
+          if (saved.mode && MODES[saved.mode]) db.mode = saved.mode;
+          if (saved.admin) Object.assign(db.admin, saved.admin);
+        }
+      } else {
+        const legacy = JSON.parse(localStorage.getItem(LEGACY_KEY) || 'null');
+        if (legacy) {
+          if (Number.isFinite(legacy.balance)) db.guest.balance = Math.max(0, Math.round(legacy.balance));
+          if (legacy.stats) db.guest.stats = Object.assign(freshStats(), legacy.stats);
+          if (Array.isArray(legacy.history)) db.guest.history = legacy.history;
+          if (legacy.settings) Object.assign(db.settings, legacy.settings);
+          if (Number.isFinite(legacy.chip)) db.chip = legacy.chip;
+          if (legacy.mode && MODES[legacy.mode]) db.mode = legacy.mode;
+        }
+      }
+    } catch (err) { /* ignore corrupt storage */ }
+
+    if (db.current && !db.users[db.current]) db.current = null;
+    for (const u of Object.values(db.users)) {
+      if (!Number.isFinite(u.balance)) u.balance = START_BALANCE;
+      if (!u.stats) u.stats = freshStats();
+      if (!Array.isArray(u.history)) u.history = [];
+    }
+    return db;
+  }
+
+  const DB = loadDB();
+
+  function activeProfile() {
+    return (DB.current && DB.users[DB.current]) ? DB.users[DB.current] : DB.guest;
+  }
+
+  const S = {
+    balance: activeProfile().balance,
+    mode: DB.mode,
+    bets: emptyBets(),
+    stack: [],
+    chip: DB.chip,
+    lastBets: activeProfile().lastBets || null,
+    stats: activeProfile().stats,
+    history: activeProfile().history,
+    settings: DB.settings,
+    shoe: new E.Shoe(8),
+    bonus: [],
+    hand: null,
+    phase: 'betting',
+    autoTimer: null
+  };
+
+  let squeezeWait = null;
+  let resultTimer = null;
+  let celebTimer = null;
+
+  function save() {
+    const p = activeProfile();
+    p.balance = S.balance;
+    p.stats = S.stats;
+    p.history = S.history.slice(-240);
+    p.lastBets = S.lastBets;
+    DB.mode = S.mode;
+    DB.chip = S.chip;
+    DB.settings = S.settings;
+    try {
+      localStorage.setItem(DB_KEY, JSON.stringify(DB));
+    } catch (err) { /* storage may be unavailable */ }
+  }
+
+  /* ───────────── dom ───────────── */
+  const el = {
+    splash: $('#splash'),
+    splashFill: $('#splashFill'),
+    balance: $('#balance'),
+    refillBtn: $('#refillBtn'),
+    soundBtn: $('#soundBtn'),
+    infoBtn: $('#infoBtn'),
+    modeSwitch: $('#modeSwitch'),
+    chipAmount: $('#chipAmount'),
+    chipRow: $('#chipRow'),
+    halfBtn: $('#halfBtn'),
+    doubleBtn: $('#doubleBtn'),
+    totalStake: $('#totalStake'),
+    feeRow: $('#feeRow'),
+    feeLabel: $('#feeLabel'),
+    totalFee: $('#totalFee'),
+    totalDebit: $('#totalDebit'),
+    rebetBtn: $('#rebetBtn'),
+    clearBtn: $('#clearBtn'),
+    undoBtn: $('#undoBtn'),
+    dealBtn: $('#dealBtn'),
+    dealAmount: $('#dealAmount'),
+    bonusStrip: $('#bonusStrip'),
+    bonusIcon: $('#bonusIcon'),
+    bonusTitle: $('#bonusTitle'),
+    bonusTag: $('#bonusTag'),
+    bonusNote: $('#bonusNote'),
+    bonusCards: $('#bonusCards'),
+    tableName: $('#tableName'),
+    tableRule: $('#tableRule'),
+    felt: $('#felt'),
+    fx: $('#fx'),
+    shoeCount: $('#shoeCount'),
+    shoeInfo: $('#shoeInfo'),
+    shoeBar: $('#shoeBar'),
+    tableNote: $('#tableNote'),
+    reshuffleBtn: $('#reshuffleBtn'),
+    bankerCards: $('#bankerCards'),
+    playerCards: $('#playerCards'),
+    bankerTotal: $('#bankerTotal'),
+    playerTotal: $('#playerTotal'),
+    payBanker: $('#payBanker'),
+    payPlayer: $('#payPlayer'),
+    payTie: $('#payTie'),
+    payPP: $('#payPP'),
+    payBP: $('#payBP'),
+    payPPEl: $('#payPP'),
+    squeezeHint: $('#squeezeHint'),
+    revealAllBtn: $('#revealAllBtn'),
+    lightningVeil: $('#lightningVeil'),
+    result: $('#result'),
+    resultKicker: $('#resultKicker'),
+    resultTitle: $('#resultTitle'),
+    resultMult: $('#resultMult'),
+    resultAmount: $('#resultAmount'),
+    resultRows: $('#resultRows'),
+    resultClose: $('#resultClose'),
+    statHands: $('#statHands'),
+    statP: $('#statP'),
+    statB: $('#statB'),
+    statT: $('#statT'),
+    statNet: $('#statNet'),
+    pPairs: $('#pPairs'),
+    bPairs: $('#bPairs'),
+    bead: $('#bead'),
+    bigroad: $('#bigroad'),
+    roadTabs: $('#roadTabs'),
+    roadCount: $('#roadCount'),
+    historyList: $('#historyList'),
+    toast: $('#toast'),
+    modalBack: $('#modalBack'),
+    modalClose: $('#modalClose'),
+    modalBalance: $('#modalBalance'),
+    modalRefill: $('#modalRefill'),
+    modalReset: $('#modalReset'),
+    optSound: $('#optSound'),
+    optSqueeze: $('#optSqueeze'),
+    optNoComm: $('#optNoComm'),
+    optAutoRebet: $('#optAutoRebet'),
+    modeVeil: $('#modeVeil'),
+    mvIcon: $('#mvIcon'),
+    mvName: $('#mvName'),
+    feltMark: $('#feltMark'),
+    liveMult: $('#liveMult'),
+    feltStatus: $('#feltStatus'),
+    brandGlyph: $('#brandGlyph'),
+    accountBtn: $('#accountBtn'),
+    avatar: $('#avatar'),
+    accName: $('#accName'),
+    logoutBtn: $('#logoutBtn'),
+    authBack: $('#authBack'),
+    authProfile: $('#authProfile'),
+    apAvatar: $('#apAvatar'),
+    apName: $('#apName'),
+    apBalance: $('#apBalance'),
+    apLogout: $('#apLogout'),
+    apSwitch: $('#apSwitch'),
+    authClose: $('#authClose'),
+    authTabs: $('#authTabs'),
+    authForm: $('#authForm'),
+    authId: $('#authId'),
+    authNick: $('#authNick'),
+    authPin: $('#authPin'),
+    authPin2: $('#authPin2'),
+    authMsg: $('#authMsg'),
+    authSubmit: $('#authSubmit'),
+    guestBtn: $('#guestBtn'),
+    nickFld: $('#nickFld'),
+    pin2Fld: $('#pin2Fld'),
+    pinBack: $('#pinBack'),
+    pinPanel: $('.pin-panel'),
+    pinClose: $('#pinClose'),
+    pinDots: $('#pinDots'),
+    pinMsg: $('#pinMsg'),
+    keypad: $('#keypad'),
+    adminBack: $('#adminBack'),
+    adminClose: $('#adminClose'),
+    admUsers: $('#admUsers'),
+    admAmount: $('#admAmount'),
+    ghRepo: $('#ghRepo'),
+    ghPat: $('#ghPat'),
+    ghTest: $('#ghTest'),
+    ghPush: $('#ghPush'),
+    ghPull: $('#ghPull'),
+    ghStatus: $('#ghStatus'),
+    splashEn: $('#splashEn'),
+    splashKo: $('#splashKo'),
+    splashArch: $('#splashArch'),
+    splashTag: $('#splashTag'),
+    flareSpark: $('#flareSpark'),
+    celebrate: $('#celebrate'),
+    celKicker: $('#celKicker'),
+    celMult: $('#celMult'),
+    celAmount: $('#celAmount'),
+    dealer: $('#dealer'),
+    fxLayer: $('#fxLayer')
+  };
+
+  let roadView = 'bead';
+  let toastTimer = 0;
+  let veilTimer = 0;
+
+  /* ───────────── small helpers ───────────── */
+  function toast(msg, ms = 2000) {
+    el.toast.textContent = msg;
+    el.toast.classList.add('on');
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => el.toast.classList.remove('on'), ms);
+  }
+
+  function pulseNode(node) {
+    if (!node) return;
+    node.style.transition = 'none';
+    node.style.transform = 'scale(1.045)';
+    requestAnimationFrame(() => {
+      node.style.transition = 'transform .28s cubic-bezier(.2,1.4,.4,1)';
+      node.style.transform = '';
+    });
+  }
+
+  function feeRate() { return MODES[S.mode].fee || 0; }
+  function feeFor(amount) { return Math.round(amount * feeRate()); }
+  function totalStake() {
+    return Object.values(S.bets).reduce((a, b) => a + (b || 0), 0);
+  }
+  function totalFee() {
+    return S.stack.reduce((a, e) => a + (e.fee || 0), 0);
+  }
+
+  /* ───────────── render: money & bets ───────────── */
+  function renderBalance() {
+    el.balance.textContent = Math.round(S.balance).toLocaleString('ko-KR');
+    if (el.modalBalance) el.modalBalance.textContent = won(S.balance);
+  }
+
+  function renderBetState() {
+    const stake = totalStake();
+    const fee = totalFee();
+    el.chipAmount.textContent = S.chip.toLocaleString('ko-KR');
+    $$('.chip', el.chipRow).forEach((c) => c.classList.toggle('is-active', Number(c.dataset.chip) === S.chip));
+
+    el.totalStake.textContent = won(stake);
+    el.totalFee.textContent = won(fee);
+    el.totalDebit.textContent = won(stake + fee);
+    el.feeRow.classList.toggle('is-off', feeRate() === 0);
+
+    el.dealBtn.disabled = stake <= 0 || S.phase !== 'betting';
+    el.dealAmount.textContent = stake > 0 ? won(stake) : '베팅하세요';
+    el.undoBtn.disabled = S.stack.length === 0 || S.phase !== 'betting';
+    el.clearBtn.disabled = stake === 0 || S.phase !== 'betting';
+    el.rebetBtn.disabled = !S.lastBets || S.phase !== 'betting';
+
+    for (const spot of Object.keys(S.bets)) {
+      const chip = $(`.bet-chip[data-betchip="${spot}"]`);
+      const amt = S.bets[spot];
+      if (chip) {
+        chip.textContent = amt ? chipLabel(amt) : '';
+        chip.classList.toggle('on', amt > 0);
+      }
+      const spotEl = $(`[data-spot="${spot}"]`);
+      if (spotEl) spotEl.classList.toggle('has-bet', amt > 0);
+    }
+  }
+
+  function renderShoe() {
+    const remaining = S.shoe.remaining;
+    el.shoeCount.textContent = remaining;
+    el.shoeInfo.textContent = `${remaining} / ${S.shoe.total}`;
+    el.shoeBar.style.width = (S.shoe.progress * 100).toFixed(1) + '%';
+    el.tableNote.textContent = `8덱 슈 · ${remaining}장 남음 · 14장 이하 자동 셔플`;
+  }
+
+  function renderStats() {
+    const st = S.stats;
+    const n = st.hands || 0;
+    el.statHands.textContent = n;
+    el.statP.textContent = n ? Math.round((st.player / n) * 100) + '%' : '0%';
+    el.statB.textContent = n ? Math.round((st.banker / n) * 100) + '%' : '0%';
+    el.statT.textContent = n ? Math.round((st.tie / n) * 100) + '%' : '0%';
+    el.pPairs.textContent = st.playerPair || 0;
+    el.bPairs.textContent = st.bankerPair || 0;
+    el.statNet.textContent = wonSign(st.profit || 0);
+    el.statNet.classList.toggle('neg', (st.profit || 0) < 0);
+  }
+
+  /* ───────────── render: mode ───────────── */
+  function applyModeCopy() {
+    const cfg = MODES[S.mode];
+    document.body.dataset.mode = S.mode;
+
+    el.tableName.textContent = cfg.name;
+    el.feltMark.textContent = cfg.icon;
+    if (el.brandGlyph) el.brandGlyph.textContent = cfg.icon;
+
+    if (S.mode === 'speed') {
+      el.tableRule.textContent = '수수료 없음 · 타이 8:1 · 페어 11:1 · 0.35초 즉시 오픈';
+    } else if (S.mode === 'sakura') {
+      el.tableRule.textContent = '벚꽃 카드 1–5장 · 2x ~ 8x 중첩 · 수수료 없음';
+      el.bonusIcon.textContent = '🌸';
+      el.bonusTitle.textContent = '벚꽃 보너스 라운드';
+      el.bonusTag.textContent = '1–5 CARDS · ×2 ~ ×8';
+      el.bonusNote.textContent = '딜 전 피어남';
+    } else {
+      el.tableRule.textContent = '눈꽃 카드 1–5장 · 2x ~ 8x 중첩 · 수수료 없음';
+      el.bonusIcon.textContent = '❄️';
+      el.bonusTitle.textContent = '눈꽃 보너스 라운드';
+      el.bonusTag.textContent = '1–5 CARDS · ×2 ~ ×8';
+      el.bonusNote.textContent = '딜 전 결정';
+    }
+
+    el.bonusStrip.classList.toggle('is-sakura', S.mode === 'sakura');
+    el.bonusStrip.classList.toggle('is-snow', S.mode === 'snow');
+    el.bonusStrip.classList.toggle('is-speed', S.mode === 'speed');
+
+    el.feeLabel.textContent = '수수료';
+
+    const p = cfg.payouts;
+    el.payBanker.textContent = p.banker.toFixed(2).replace(/0$/, '') + ':1';
+    el.payPlayer.textContent = p.player + ':1';
+    el.payTie.textContent = p.tie + ':1';
+    el.payPP.textContent = p.playerPair + ':1';
+    el.payBP.textContent = p.bankerPair + ':1';
+
+    $$('.mode-btn').forEach((b) => b.classList.toggle('is-active', b.dataset.mode === S.mode));
+  }
+
+  function setMode(mode, opts) {
+    const options = opts || {};
+    if (!MODES[mode] || mode === S.mode && !options.force) return;
+    if (S.phase === 'dealing' || S.phase === 'reveal') {
+      toast('핸드가 끝난 뒤 모드를 바꿀 수 있습니다');
+      return;
+    }
+    refundAll(true);
+    S.mode = mode;
+    S.bonus = [];
+    S.hand = null;
+    S.phase = 'betting';
+    applyModeCopy();
+    clearTable();
+    renderBonusEmpty();
+    window.FX && FX.setMode(mode);
+    if (!options.instant) flashModeVeil(mode);
+    renderAll();
+    save();
+  }
+
+  function flashModeVeil(mode) {
+    const cfg = MODES[mode];
+    el.mvIcon.textContent = cfg.icon;
+    el.mvName.textContent = cfg.name + ' 테이블';
+    el.modeVeil.classList.add('on');
+    clearTimeout(veilTimer);
+    veilTimer = setTimeout(() => el.modeVeil.classList.remove('on'), 620);
+  }
+
+  /* ───────────── render: bonus slots ───────────── */
+  function bonusCardEl(b) {
+    const d = document.createElement('div');
+    d.className = 'bonus-card';
+    d.dataset.card = b.id;
+    d.innerHTML = `<span class="bc-rank">${b.rank}</span><span class="bc-suit">${SYM[b.suit]}</span><span class="bc-mult">${b.multiplier}x</span>`;
+    return d;
+  }
+
+  // five fixed upright gold slots; revealed bonus cards fill them in order
+  function buildBonusSlots() {
+    el.bonusCards.innerHTML = '';
+    for (let i = 0; i < 5; i++) {
+      const slot = document.createElement('div');
+      slot.className = 'bs-slot';
+      slot.innerHTML = '<span class="bs-slot-badge"></span><span class="bs-slot-face"></span>';
+      el.bonusCards.appendChild(slot);
+    }
+    return $$('.bs-slot', el.bonusCards);
+  }
+
+  function fillBonusSlot(slot, b) {
+    if (!slot) return null;
+    slot.classList.add('is-filled');
+    const badge = $('.bs-slot-badge', slot);
+    if (badge) badge.textContent = b.multiplier + 'x';
+    const card = bonusCardEl(b);
+    card.classList.add('in');
+    slot.appendChild(card);
+    return card;
+  }
+
+  function renderBonusEmpty() {
+    buildBonusSlots();
+    if (S.mode === 'speed') { el.bonusCards.innerHTML = ''; return; }
+    el.bonusNote.textContent = '딜 전 공개';
+  }
+
+  function renderBonusResult() {
+    const slots = buildBonusSlots();
+    S.bonus.forEach((b, i) => fillBonusSlot(slots[i], b));
+    const max = S.bonus.reduce((m, b) => Math.max(m, b.multiplier), 1);
+    el.bonusNote.textContent = S.bonus.length ? `${S.bonus.length}장 · 최대 ${max}x` : '딜 전 공개';
+  }
+
+  /* ───────────── cards ───────────── */
+  function cardEl(card, up) {
+    const red = card.suit === 'h' || card.suit === 'd';
+    const d = document.createElement('div');
+    d.className = 'card' + (up ? ' up' : '');
+    d.dataset.card = card.id;
+    d._card = card;
+    d.addEventListener('click', (ev) => ev.stopPropagation());
+    d.innerHTML =
+      '<div class="card-inner">' +
+        '<div class="card-face card-back"><span class="cb-mark"></span></div>' +
+        '<div class="card-face card-front' + (red ? ' red' : '') + '">' +
+          '<span class="c-rank">' + card.rank + '</span>' +
+          '<span class="c-suit">' + SYM[card.suit] + '</span>' +
+          '<span class="c-big">' + SYM[card.suit] + '</span>' +
+          '<span class="c-rank br">' + card.rank + '</span>' +
+        '</div>' +
+      '</div>';
+    return d;
+  }
+
+  function containerFor(side) {
+    return side === 'player' ? el.playerCards : el.bankerCards;
+  }
+
+  /* ───────────── dealer motion · card flight ───────────── */
+  function centerOf(node) {
+    if (!node) return null;
+    const r = node.getBoundingClientRect();
+    return { x: r.left + r.width / 2, y: r.top + r.height / 2, w: r.width, h: r.height };
+  }
+
+  function armRest() {
+    window.setTimeout(() => {
+      if (el.dealer) el.dealer.classList.remove('is-deal-l', 'is-deal-r');
+      const shoe = $('#shoeEl');
+      if (shoe) shoe.classList.remove('is-dealing');
+    }, 640);
+  }
+
+  // dealer reaches into the shoe, a card flies from the shoe mouth onto the felt spot
+  async function dealerDraw(side, node, fast) {
+    const shoe = $('#shoeEl');
+    if (el.dealer) {
+      el.dealer.classList.remove('is-deal-l', 'is-deal-r');
+      void el.dealer.offsetWidth;
+      el.dealer.classList.add(side === 'player' ? 'is-deal-l' : 'is-deal-r');
+    }
+    if (shoe) {
+      shoe.classList.remove('is-dealing');
+      void shoe.offsetWidth;
+      shoe.classList.add('is-dealing');
+    }
+    armRest();
+
+    const target = centerOf(node);
+    const from = centerOf(shoe && (shoe.querySelector('.sh-mouth') || shoe)) || target;
+    if (!target || !from || !el.fxLayer) return;
+    if (fast && !window.__BACCARAT_FLY) return;
+
+    const ghost = document.createElement('div');
+    ghost.className = 'fly-card';
+    ghost.style.width = target.w + 'px';
+    ghost.style.height = target.h + 'px';
+    ghost.style.left = '0px';
+    ghost.style.top = '0px';
+    el.fxLayer.appendChild(ghost);
+
+    const x0 = from.x - target.w / 2;
+    const y0 = from.y - target.h / 2;
+    const x1 = target.x - target.w / 2;
+    const y1 = target.y - target.h / 2;
+    const lift = Math.min(70, Math.abs(y1 - y0) * 0.5 + 24);
+    const dur = fast ? 130 : 330;
+
+    const anim = ghost.animate([
+      { transform: `translate(${x0}px, ${y0}px) rotate(-10deg) scale(.82)`, opacity: 0 },
+      { transform: `translate(${x0}px, ${y0}px) rotate(-6deg) scale(.9)`, opacity: 1, offset: .12 },
+      { transform: `translate(${(x0 + x1) / 2}px, ${Math.min(y0, y1) - lift}px) rotate(12deg) scale(1.06)`, opacity: 1, offset: .5 },
+      { transform: `translate(${x1}px, ${y1}px) rotate(0deg) scale(1)`, opacity: 1 }
+    ], { duration: dur, easing: 'cubic-bezier(.3,.7,.25,1)', fill: 'forwards' });
+
+    try { await anim.finished; } catch (err) { /* animation cancelled */ }
+    ghost.remove();
+  }
+
+  // golden light beam from a bonus slot to the matched table card
+  function beamToCard(slot, card, mult) {
+    if (!el.fxLayer || !slot || !card) return;
+    const a = centerOf(slot);
+    const b = centerOf(card);
+    if (!a || !b) return;
+    const dx = b.x - a.x;
+    const dy = b.y - a.y;
+    const len = Math.hypot(dx, dy);
+    const ang = Math.atan2(dy, dx) * 180 / Math.PI;
+
+    const beam = document.createElement('div');
+    beam.className = 'beam';
+    beam.style.left = a.x + 'px';
+    beam.style.top = a.y + 'px';
+    beam.style.width = len + 'px';
+    beam.style.transform = `rotate(${ang}deg)`;
+    el.fxLayer.appendChild(beam);
+    window.setTimeout(() => beam.remove(), 900);
+
+    const wave = document.createElement('div');
+    wave.className = 'shockwave';
+    wave.style.left = b.x + 'px';
+    wave.style.top = b.y + 'px';
+    el.fxLayer.appendChild(wave);
+    window.setTimeout(() => wave.remove(), 820);
+
+    for (let i = 0; i < 7; i++) {
+      const sp = document.createElement('div');
+      sp.className = 'gold-spark';
+      sp.style.left = b.x + 'px';
+      sp.style.top = b.y + 'px';
+      const ang2 = (Math.PI * 2 * i) / 7 + Math.random() * .6;
+      const dist = 26 + Math.random() * 44;
+      sp.style.setProperty('--gx', Math.cos(ang2) * dist + 'px');
+      sp.style.setProperty('--gy', Math.sin(ang2) * dist - 12 + 'px');
+      sp.style.animationDelay = (Math.random() * .08) + 's';
+      el.fxLayer.appendChild(sp);
+      window.setTimeout(() => sp.remove(), 1100);
+    }
+
+    // multiplier badge pops on the slot side too
+    const badge = slot.querySelector('.bs-slot-badge');
+    if (badge && mult) {
+      badge.animate([
+        { transform: 'translateX(-50%) scale(.6)', opacity: .3 },
+        { transform: 'translateX(-50%) scale(1.25)', opacity: 1, offset: .55 },
+        { transform: 'translateX(-50%) scale(1)', opacity: 1 }
+      ], { duration: 460, easing: 'cubic-bezier(.2,1.5,.4,1)' });
+    }
+  }
+
+  function clearTable() {
+    el.playerCards.innerHTML = '';
+    el.bankerCards.innerHTML = '';
+    el.playerTotal.innerHTML = '<i>—</i>';
+    el.bankerTotal.innerHTML = '<i>—</i>';
+    if (el.feltStatus) el.feltStatus.textContent = 'PLACE YOUR BETS';
+    el.playerTotal.classList.remove('is-hot');
+    el.bankerTotal.classList.remove('is-hot');
+    el.squeezeHint.classList.remove('on');
+    el.result.classList.remove('on');
+    clearTimeout(resultTimer);
+    squeezeWait = null;
+    if (el.liveMult) el.liveMult.innerHTML = '';
+  }
+
+  function revealedCards(side) {
+    const box = containerFor(side);
+    return $$('.card.up', box).map((c) => c._card);
+  }
+
+  function updateTotals() {
+    for (const side of ['player', 'banker']) {
+      const cards = revealedCards(side);
+      const badge = side === 'player' ? el.playerTotal : el.bankerTotal;
+      if (!cards.length) badge.innerHTML = '<i>—</i>';
+      else badge.textContent = E.handTotal(cards);
+    }
+  }
+
+  function allUp() {
+    const all = $$('.card', el.playerCards).concat($$('.card', el.bankerCards));
+    return all.length > 0 && all.every((c) => c.classList.contains('up'));
+  }
+
+  function makePeekable(cardNode) {
+    cardNode.classList.add('peekable');
+    cardNode.addEventListener('click', (ev) => {
+      ev.stopPropagation();
+      revealCard(cardNode);
+    });
+  }
+
+  function revealCard(node) {
+    if (!node || node.classList.contains('up')) return;
+    node.classList.remove('peekable');
+    node.classList.add('up');
+    window.Sound && Sound.flip();
+    updateTotals();
+    if (node._card) sparkIfHit(node, node._card);
+    updateLiveMults();
+    checkSqueezeWait();
+  }
+
+  function checkSqueezeWait() {
+    if (!squeezeWait) return;
+    if (squeezeWait.els.every((n) => n.classList.contains('up'))) {
+      const fn = squeezeWait.resolve;
+      squeezeWait = null;
+      fn();
+    }
+  }
+
+  function waitAllUp(nodes) {
+    if (!nodes.length) return Promise.resolve();
+    if (nodes.every((n) => n.classList.contains('up'))) return Promise.resolve();
+    return new Promise((resolve) => { squeezeWait = { els: nodes, resolve }; });
+  }
+
+  /* ───────────── betting ───────────── */
+  function placeBet(spot, amount) {
+    if (!(spot in S.bets)) return false;
+    if (S.phase !== 'betting') { toast('핸드 진행 중에는 베팅할 수 없습니다'); return false; }
+    const amt = Math.max(0, Math.round(amount));
+    if (!amt) return false;
+    const fee = feeFor(amt);
+    if (amt + fee > S.balance) {
+      toast('가상 머니가 부족합니다 · 충전을 눌러주세요');
+      pulseNode($('#balancePill'));
+      return false;
+    }
+    S.balance -= amt + fee;
+    S.bets[spot] += amt;
+    S.stack.push({ spot, amount: amt, fee });
+    window.Sound && Sound.chip();
+    renderBalance();
+    renderBetState();
+    save();
+    return true;
+  }
+
+  function refundAll(silent) {
+    if (!S.stack.length && totalStake() === 0) {
+      S.bets = emptyBets();
+      return;
+    }
+    for (const e of S.stack) {
+      S.balance += e.amount + e.fee;
+      S.bets[e.spot] = Math.max(0, (S.bets[e.spot] || 0) - e.amount);
+    }
+    S.stack = [];
+    S.bets = emptyBets();
+    if (!silent) {
+      renderBalance();
+      renderBetState();
+      save();
+    }
+  }
+
+  function undo() {
+    if (S.phase !== 'betting') return;
+    const last = S.stack.pop();
+    if (!last) { toast('되돌릴 베팅이 없습니다'); return; }
+    S.bets[last.spot] = Math.max(0, S.bets[last.spot] - last.amount);
+    S.balance += last.amount + last.fee;
+    window.Sound && Sound.click();
+    renderBalance();
+    renderBetState();
+    save();
+  }
+
+  function clearBets() {
+    if (S.phase !== 'betting') return;
+    if (!S.stack.length) { toast('베팅이 없습니다'); return; }
+    refundAll();
+    window.Sound && Sound.click();
+    toast('베팅을 초기화했습니다');
+  }
+
+  function rebet() {
+    if (S.phase !== 'betting') return;
+    if (!S.lastBets) { toast('재베팅할 내역이 없습니다'); return; }
+    refundAll(true);
+    let placed = 0;
+    for (const spot of Object.keys(S.lastBets)) {
+      const amt = S.lastBets[spot];
+      if (!amt) continue;
+      const fee = feeFor(amt);
+      if (amt + fee > S.balance) continue;
+      S.balance -= amt + fee;
+      S.bets[spot] = amt;
+      S.stack.push({ spot, amount: amt, fee });
+      placed++;
+    }
+    window.Sound && Sound.chip();
+    renderBalance();
+    renderBetState();
+    save();
+    if (!placed) toast('가상 머니가 부족합니다');
+    else toast('지난 베팅을 다시 걸었습니다');
+  }
+
+  function setChip(v) {
+    S.chip = clamp(Math.round(v / 1000) * 1000, 1000, MAX_CHIP);
+    window.Sound && Sound.click();
+    renderBetState();
+    save();
+  }
+
+  function refill(amount) {
+    S.balance += amount || START_BALANCE;
+    pulseNode($('#balancePill'));
+    window.Sound && Sound.chip();
+    renderBalance();
+    renderBetState();
+    save();
+  }
+
+  /* ───────────── bonus round ───────────── */
+  function bonusCardSound(mode, i) {
+    if (!window.Sound) return;
+    if (mode === 'sakura') Sound.sakura();
+    else if (mode === 'snow') Sound.frost();
+    else Sound.speed();
+  }
+
+  async function bonusRound(cfg) {
+    const cards = E.createBonusCards(cfg.bonus);
+    S.bonus = cards;
+    const slots = buildBonusSlots();
+    el.bonusNote.textContent = '공개 중…';
+
+    const veil = el.lightningVeil;
+    veil.classList.add('on');
+    if (cfg.id === 'sakura') {
+      window.Sound && Sound.sakura();
+    } else {
+      window.Sound && Sound.frost();
+    }
+    if (window.FX) FX.burst();
+    await sleep(420);
+
+    const nodes = cards.map((b, i) => {
+      const node = fillBonusSlot(slots[i], b);
+      if (!node) return null;
+      node.style.transition = 'none';
+      node.style.opacity = '0';
+      node.style.transform = 'scale(.62) rotate(-8deg)';
+      return node;
+    }).filter(Boolean);
+
+    for (let i = 0; i < nodes.length; i++) {
+      const node = nodes[i];
+      await sleep(i === 0 ? 60 : 150);
+      node.style.transition = 'transform .44s cubic-bezier(.16,1,.3,1), opacity .3s';
+      node.style.opacity = '1';
+      node.style.transform = 'none';
+      bonusCardSound(cfg.id, i);
+      if (window.FX) FX.burst();
+      // gold shockwave on the freshly opened slot
+      const slotEl = node.closest('.bs-slot');
+      const pt = centerOf(slotEl);
+      if (pt && el.fxLayer) {
+        const wave = document.createElement('div');
+        wave.className = 'shockwave';
+        wave.style.left = pt.x + 'px';
+        wave.style.top = pt.y + 'px';
+        el.fxLayer.appendChild(wave);
+        window.setTimeout(() => wave.remove(), 820);
+      }
+    }
+    veil.classList.remove('on');
+
+    const max = cards.reduce((m, b) => Math.max(m, b.multiplier), 1);
+    el.bonusNote.textContent = `${cards.length}장 · 최대 ×${max}`;
+    await sleep(160);
+  }
+
+  /* ───────────── deal ───────────── */
+  function sequenceOf(result) {
+    const seq = [];
+    seq.push({ side: 'player', card: result.playerCards[0] });
+    seq.push({ side: 'banker', card: result.bankerCards[0] });
+    seq.push({ side: 'player', card: result.playerCards[1] });
+    seq.push({ side: 'banker', card: result.bankerCards[1] });
+    if (result.playerCards[2]) seq.push({ side: 'player', card: result.playerCards[2] });
+    if (result.bankerCards[2]) seq.push({ side: 'banker', card: result.bankerCards[2] });
+    return seq;
+  }
+
+  async function deal() {
+    if (S.phase !== 'betting') return;
+    if (totalStake() <= 0) { toast('먼저 베팅하세요'); return; }
+
+    S.phase = 'dealing';
+    S.lastBets = Object.assign(emptyBets(), S.bets);
+    S.stack = [];
+    S.bonus = [];
+    S.hand = null;
+    clearTable();
+    if (el.feltStatus) el.feltStatus.textContent = 'NO MORE BETS · DEALING';
+    renderBetState();
+    renderBonusEmpty();
+    el.result.classList.remove('on');
+    clearTimeout(resultTimer);
+
+    const cfg = MODES[S.mode];
+    const fast = cfg.id === 'speed';
+
+    if (S.shoe.needsShuffle()) {
+      S.shoe.reshuffle();
+      renderShoe();
+      toast('슈 셔플 · 416장');
+      window.Sound && Sound.card();
+      await sleep(fast ? 90 : 380);
+    }
+
+    // bonus round (blossom / snowflake)
+    if (cfg.bonus) await bonusRound(cfg);
+
+    const result = E.dealHand(S.shoe);
+    S.hand = result;
+    renderShoe();
+
+    const squeeze = !!S.settings.squeeze && !fast;
+    const seq = sequenceOf(result);
+    const first = seq.slice(0, 4);
+    const thirds = seq.slice(4);
+    const firstNodes = [];
+
+    for (const step of first) {
+      const node = cardEl(step.card, false);
+      node.classList.add('is-pending');
+      containerFor(step.side).appendChild(node);
+      firstNodes.push(node);
+      await dealerDraw(step.side, node, fast);
+      node.classList.remove('is-pending');
+      node.classList.add('landed');
+      window.Sound && Sound.card();
+
+      if (squeeze) {
+        makePeekable(node);
+      } else {
+        await sleep(fast ? 22 : 100);
+        node.classList.add('up');
+        window.Sound && Sound.flip();
+        sparkIfHit(node, step.card);
+        updateLiveMults();
+      }
+      await sleep(fast ? 40 : 110);
+    }
+
+    if (squeeze) {
+      S.phase = 'reveal';
+      el.squeezeHint.classList.add('on');
+      updateTotals();
+      await waitAllUp(firstNodes);
+      el.squeezeHint.classList.remove('on');
+    }
+
+    // third cards
+    const thirdNodes = [];
+    for (const step of thirds) {
+      const node = cardEl(step.card, false);
+      node.classList.add('is-pending');
+      containerFor(step.side).appendChild(node);
+      thirdNodes.push(node);
+      await dealerDraw(step.side, node, fast);
+      node.classList.remove('is-pending');
+      node.classList.add('landed');
+      window.Sound && Sound.card();
+
+      if (squeeze) {
+        makePeekable(node);
+      } else {
+        await sleep(fast ? 22 : 100);
+        node.classList.add('up');
+        window.Sound && Sound.flip();
+        sparkIfHit(node, step.card);
+        updateLiveMults();
+      }
+      await sleep(fast ? 40 : 110);
+    }
+
+    if (squeeze && thirdNodes.length) {
+      S.phase = 'reveal';
+      el.squeezeHint.classList.add('on');
+      await waitAllUp(thirdNodes);
+      el.squeezeHint.classList.remove('on');
+    }
+
+    // reveal everything (non-squeeze already up)
+    $$('.card', el.felt).forEach((c) => {
+      if (!c.classList.contains('up')) {
+        c.classList.add('up');
+        c.classList.remove('peekable');
+      }
+    });
+    updateTotals();
+
+    if (fast) {
+      await sleep(90);
+    } else {
+      await sleep(160);
+    }
+
+    finishHand();
+  }
+
+  function revealAll() {
+    $$('.card.peekable', el.felt).forEach((n) => revealCard(n));
+  }
+
+  /* ───────────── settle ───────────── */
+  function markHits(settled) {
+    for (const item of settled.items) {
+      if (!item.hits || !item.hits.length) continue;
+      if (item.outcome !== 'win') continue;
+      const box = item.spot === 'player' ? el.playerCards : item.spot === 'banker' ? el.bankerCards : null;
+      const ids = item.hits.map((h) => h.id);
+      if (box) {
+        $$('.card', box).forEach((c) => {
+          if (ids.indexOf(c.dataset.card) >= 0) c.classList.add('is-hit');
+        });
+      } else if (item.spot === 'tie') {
+        $$('.card', el.felt).forEach((c) => {
+          if (ids.indexOf(c.dataset.card) >= 0) c.classList.add('is-hit');
+        });
+      }
+      $$('.bonus-card', el.bonusCards).forEach((c) => {
+        if (ids.indexOf(c.dataset.card) >= 0) {
+          c.classList.add('is-hit');
+          const slot = c.closest('.bs-slot');
+          if (slot) slot.classList.add('is-hit');
+        }
+      });
+    }
+  }
+
+  /* ───────────── live multipliers & celebration ───────────── */
+  let liveSig = '';
+
+  function sparkIfHit(node, card) {
+    if (!S.bonus || !S.bonus.length) return;
+    const hit = S.bonus.find((b) => b.id === card.id);
+    if (!hit) return;
+    node.classList.add('is-hit');
+    node.classList.remove('is-spark');
+    void node.offsetWidth;
+    node.classList.add('is-spark');
+    window.setTimeout(() => node.classList.remove('is-spark'), 620);
+
+    // glowing gold multiplier badge floats directly above the matched card
+    if (!node.querySelector('.card-mult')) {
+      const badge = document.createElement('span');
+      badge.className = 'card-mult';
+      badge.textContent = hit.multiplier + 'x';
+      node.appendChild(badge);
+    }
+
+    if (window.Sound) Sound.zap([2, 3, 4, 5, 8].indexOf(hit.multiplier));
+    const bc = el.bonusCards.querySelector(`.bonus-card[data-card="${card.id}"]`);
+    if (bc) {
+      bc.classList.add('is-hit');
+      const slot = bc.closest('.bs-slot');
+      if (slot) slot.classList.add('is-hit');
+      beamToCard(slot, node, hit.multiplier);
+    }
+  }
+
+  function updateLiveMults() {
+    if (!el.liveMult) return;
+    if (!S.bonus || !S.bonus.length) { el.liveMult.innerHTML = ''; liveSig = ''; return; }
+    const pCards = revealedCards('player');
+    const bCards = revealedCards('banker');
+    if (!pCards.length && !bCards.length) { el.liveMult.innerHTML = ''; liveSig = ''; return; }
+
+    const chips = [];
+    const pm = E.multiplierFor(pCards, S.bonus);
+    const bm = E.multiplierFor(bCards, S.bonus);
+    if (pm.multiplier > 1) chips.push({ key: 'p' + pm.multiplier, cls: 'p', label: '플레이어', mult: pm.multiplier });
+    if (bm.multiplier > 1) chips.push({ key: 'b' + bm.multiplier, cls: 'b', label: '뱅커', mult: bm.multiplier });
+
+    const pPair = pCards.length >= 2 && pCards[0].rank === pCards[1].rank;
+    const bPair = bCards.length >= 2 && bCards[0].rank === bCards[1].rank;
+    if (pPair) {
+      const m = E.multiplierFor(pCards.slice(0, 2), S.bonus).multiplier;
+      if (m > 1) chips.push({ key: 'pp' + m, cls: 'pair', label: 'P페어', mult: m });
+    }
+    if (bPair) {
+      const m = E.multiplierFor(bCards.slice(0, 2), S.bonus).multiplier;
+      if (m > 1) chips.push({ key: 'bp' + m, cls: 'pair', label: 'B페어', mult: m });
+    }
+
+    const sig = chips.map((c) => c.key).join('|');
+    if (sig === liveSig) return;
+    liveSig = sig;
+    el.liveMult.innerHTML = chips.map((c) =>
+      `<span class="lm-chip ${c.cls}">⚡ <span class="lmk">${c.label}</span> ×${c.mult}</span>`
+    ).join('');
+  }
+
+  function celebrate(settled) {
+    if (!el.celebrate) return;
+    if (!(settled.bestMultiplier > 1) || settled.net <= 0) return;
+    const cfg = MODES[S.mode];
+    el.celKicker.textContent = cfg.icon + ' ' + (S.mode === 'sakura' ? 'BLOSSOM BONUS WIN' : S.mode === 'snow' ? 'FROST BONUS WIN' : 'SPEED WIN');
+    el.celMult.textContent = '×' + settled.bestMultiplier;
+    el.celAmount.textContent = wonSign(settled.net);
+    el.celebrate.classList.add('on');
+    if (window.FX) FX.burst();
+    clearTimeout(celebTimer);
+    celebTimer = window.setTimeout(() => el.celebrate.classList.remove('on'), 2800);
+  }
+
+  function finishHand() {
+    if (!S.hand) return;
+    const result = S.hand;
+    const settled = E.settleRound({
+      bets: S.bets,
+      result,
+      mode: S.mode,
+      noCommission: S.settings.noCommission,
+      bonus: S.bonus
+    });
+
+    S.balance += settled.returned;
+
+    const st = S.stats;
+    st.hands += 1;
+    st[result.winner] += 1;
+    if (result.playerPair) st.playerPair += 1;
+    if (result.bankerPair) st.bankerPair += 1;
+    st.wagered += settled.staked;
+    st.profit += settled.net;
+
+    S.history.push({
+      winner: result.winner,
+      p: result.playerTotal,
+      b: result.bankerTotal,
+      pp: result.playerPair,
+      bp: result.bankerPair,
+      mult: settled.bestMultiplier,
+      ts: Date.now()
+    });
+    if (S.history.length > 240) S.history.shift();
+
+    markHits(settled);
+
+    const betSpots = Object.keys(S.bets).filter((k) => S.bets[k] > 0);
+    S.bets = emptyBets();
+    S.stack = [];
+    S.phase = 'betting';
+    if (el.feltStatus) el.feltStatus.textContent = 'PLACE YOUR BETS';
+
+    renderBalance();
+    renderStats();
+    renderRoads();
+    renderHistory();
+    renderBetState();
+    renderShoe();
+    save();
+
+    // sound
+    if (window.Sound) {
+      if (settled.net > 0) {
+        if (settled.bestMultiplier >= 4) Sound.bigWin();
+        else Sound.win();
+      } else if (settled.net < 0) {
+        Sound.lose();
+      } else if (settled.returned > 0 || settled.staked > 0) {
+        Sound.push();
+      }
+    }
+
+    showResult(settled, result, betSpots);
+    updateLiveMults();
+    celebrate(settled);
+
+    // speed table auto rebet
+    if (MODES[S.mode].id === 'speed' && S.settings.autoRebet) {
+      const prev = S.lastBets;
+      if (prev && Object.values(prev).some((v) => v > 0)) {
+        clearTimeout(S.autoTimer);
+        S.autoTimer = setTimeout(() => {
+          if (S.phase !== 'betting' || totalStake() > 0) return;
+          for (const spot of Object.keys(prev)) {
+            const amt = prev[spot];
+            if (!amt) continue;
+            const fee = feeFor(amt);
+            if (amt + fee > S.balance) return;
+            S.balance -= amt + fee;
+            S.bets[spot] = amt;
+            S.stack.push({ spot, amount: amt, fee });
+          }
+          toast('자동 재베팅 준비');
+          renderBalance();
+          renderBetState();
+          save();
+        }, 700);
+      }
+    }
+  }
+
+  function showResult(settled, result, betSpots) {
+    const cfg = MODES[S.mode];
+    const winnerName = result.winner === 'player' ? '플레이어 승리' : result.winner === 'banker' ? '뱅커 승리' : '타이';
+    el.resultKicker.textContent = `${cfg.name} · ${result.playerTotal} : ${result.bankerTotal}${result.natural ? ' · 내추럴' : ''}`;
+    el.resultTitle.textContent = winnerName;
+
+    if (settled.bestMultiplier > 1) {
+      el.resultMult.textContent = `${cfg.icon} ×${settled.bestMultiplier} ${S.mode === 'sakura' ? 'BLOSSOM' : S.mode === 'snow' ? 'FROST' : 'SPEED'} WIN!`;
+      el.resultMult.classList.add('on');
+    } else {
+      el.resultMult.classList.remove('on');
+    }
+
+    el.resultAmount.textContent = settled.net === 0 ? '±₩0' : wonSign(settled.net);
+    el.resultAmount.className = 'result-amount' + (settled.net > 0 ? '' : settled.net < 0 ? ' lose' : ' push');
+
+    el.resultRows.innerHTML = '';
+    if (!settled.items.length) {
+      el.resultRows.innerHTML = '<div class="result-row"><span>베팅 없음</span><b>—</b></div>';
+    }
+    for (const item of settled.items) {
+      const row = document.createElement('div');
+      const cls = item.outcome === 'win' ? 'win' : item.outcome === 'push' ? '' : 'lose';
+      row.className = 'result-row ' + cls;
+      const outcomeTxt = item.outcome === 'win' ? '승리' : item.outcome === 'push' ? '푸시' : '패배';
+      const multTxt = item.multiplier > 1 ? ` · ×${item.multiplier}` : '';
+      row.innerHTML = `<span>${SPOT_LABEL[item.spot]} ${won(item.stake)}<span class="rom"> · ${outcomeTxt}${multTxt}</span></span>` +
+        `<b>${item.outcome === 'win' ? '+' + won(item.returned) : item.outcome === 'push' ? won(item.returned) : won(0)}</b>`;
+      el.resultRows.appendChild(row);
+    }
+
+    const bigWin = settled.bestMultiplier > 1 && settled.net > 0;
+    clearTimeout(resultTimer);
+    // the big-win celebration (fixed overlay) plays above the result card,
+    // so the card can be mounted immediately and stay until dismissed.
+    resultTimer = setTimeout(() => {
+      el.result.classList.add('on');
+      resultTimer = setTimeout(() => el.result.classList.remove('on'), bigWin ? 9000 : 7000);
+    }, 0);
+
+    if (settled.net > 0) pulseNode($('#balancePill'));
+  }
+
+  /* ───────────── roads ───────────── */
+  function renderRoads() {
+    const hist = S.history;
+    el.roadCount.textContent = hist.length;
+
+    // Bead plate (원판)
+    el.bead.innerHTML = '';
+    const beadHist = hist.slice(-96);
+    beadHist.forEach((h, i) => {
+      const d = document.createElement('div');
+      const cls = h.winner === 'player' ? 'p' : h.winner === 'banker' ? 'b' : 't';
+      d.className = 'bead-cell ' + cls;
+      d.style.gridColumn = String(Math.floor(i / 6) + 1);
+      d.style.gridRow = String((i % 6) + 1);
+      d.textContent = h.winner === 'player' ? 'P' : h.winner === 'banker' ? 'B' : 'T';
+      if (h.winner === 'tie') {
+        const s = document.createElement('span');
+        s.className = 'slash';
+        d.appendChild(s);
+      }
+      if (h.pp || h.bp) {
+        const dot = document.createElement('span');
+        dot.className = 'pd ' + (h.pp ? 'pp' : 'bp');
+        d.appendChild(dot);
+        if (h.pp && h.bp) {
+          const dot2 = document.createElement('span');
+          dot2.className = 'pd bp';
+          dot2.style.right = '6px';
+          d.appendChild(dot2);
+        }
+      }
+      el.bead.appendChild(d);
+    });
+
+    // Big road (빅로드)
+    el.bigroad.innerHTML = '';
+    const cells = [];
+    let last = null;
+    for (const h of hist) {
+      if (h.winner === 'tie') {
+        if (last) last.ties = (last.ties || 0) + 1;
+        continue;
+      }
+      let pos;
+      if (!last) pos = { c: 0, r: 0 };
+      else if (h.winner === last.winner) {
+        pos = last.r < 5 ? { c: last.c, r: last.r + 1 } : { c: last.c + 1, r: last.r, tail: true };
+      } else {
+        pos = { c: last.c + 1, r: 0 };
+      }
+      last = { c: pos.c, r: pos.r, winner: h.winner, pp: h.pp, bp: h.bp, ties: 0, tail: !!pos.tail };
+      cells.push(last);
+    }
+
+    const visible = cells.slice(-140);
+    visible.forEach((cell) => {
+      const d = document.createElement('div');
+      d.className = 'br-cell ' + (cell.winner === 'player' ? 'p' : 'b');
+      d.style.gridColumn = String(cell.c + 1);
+      d.style.gridRow = String(cell.r + 1);
+      const rim = document.createElement('span');
+      rim.className = 'rim';
+      rim.textContent = cell.winner === 'player' ? 'P' : 'B';
+      d.appendChild(rim);
+      if (cell.ties) {
+        const s = document.createElement('span');
+        s.className = 'slash';
+        s.style.opacity = String(Math.min(1, 0.45 + cell.ties * 0.3));
+        d.appendChild(s);
+      }
+      if (cell.pp) {
+        const dot = document.createElement('span');
+        dot.className = 'pd pp';
+        d.appendChild(dot);
+      }
+      if (cell.bp) {
+        const dot = document.createElement('span');
+        dot.className = 'pd bp';
+        if (cell.pp) dot.style.right = '7px';
+        d.appendChild(dot);
+      }
+      el.bigroad.appendChild(d);
+    });
+
+    const wrap = $('.road-wrap');
+    if (wrap) wrap.scrollLeft = wrap.scrollWidth;
+  }
+
+  function renderHistory() {
+    el.historyList.innerHTML = '';
+    if (!S.history.length) {
+      el.historyList.innerHTML = '<span class="hist-empty">아직 기록이 없습니다</span>';
+      return;
+    }
+    const recent = S.history.slice(-14).reverse();
+    for (const h of recent) {
+      const d = document.createElement('div');
+      const cls = h.winner === 'player' ? 'p' : h.winner === 'banker' ? 'b' : 't';
+      d.className = 'hist-item ' + cls;
+      d.innerHTML = `<span class="hv"></span>${h.winner === 'player' ? 'P' : h.winner === 'banker' ? 'B' : 'T'} ${h.p}·${h.b}` +
+        (h.mult > 1 ? `<span class="hm">×${h.mult}</span>` : '');
+      el.historyList.appendChild(d);
+    }
+  }
+
+  function renderAll() {
+    renderBalance();
+    renderBetState();
+    renderShoe();
+    renderStats();
+    renderRoads();
+    renderHistory();
+    applyModeCopy();
+    renderBonusEmpty();
+    if (S.bonus && S.bonus.length) renderBonusResult();
+  }
+
+  /* ───────────── sound button ───────────── */
+  const ICON_SOUND_ON =
+    '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9.5h3.2L12 5.5v13L7.2 14.5H4z" fill="currentColor"/><path d="M15.5 9a4 4 0 0 1 0 6M18 6.5a7.5 7.5 0 0 1 0 11" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>';
+  const ICON_SOUND_OFF =
+    '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9.5h3.2L12 5.5v13L7.2 14.5H4z" fill="currentColor"/><path d="M15.5 9.5l5 5m0-5l-5 5" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>';
+
+  function renderSoundBtn() {
+    el.soundBtn.innerHTML = S.settings.sound ? ICON_SOUND_ON : ICON_SOUND_OFF;
+    el.soundBtn.style.color = S.settings.sound ? '#CFE3EE' : '#5D7686';
+    el.optSound.checked = S.settings.sound;
+  }
+
+  function applySound() {
+    window.Sound && Sound.setMuted(!S.settings.sound);
+    renderSoundBtn();
+  }
+
+  /* ───────────── modal ───────────── */
+  let resetArmed = false;
+  let resetTimer = 0;
+
+  function openModal() {
+    el.modalBack.hidden = false;
+    el.modalBack.style.pointerEvents = 'auto';
+    document.body.classList.add('is-locked');
+    el.modalBalance.textContent = won(S.balance);
+    el.optSound.checked = S.settings.sound;
+    el.optSqueeze.checked = S.settings.squeeze;
+    el.optNoComm.checked = S.settings.noCommission;
+    el.optAutoRebet.checked = S.settings.autoRebet;
+    if (window.Sound) Sound.click();
+  }
+
+  function closeModal() {
+    el.modalBack.hidden = true;
+    document.body.classList.remove('is-locked');
+  }
+
+  /* ───────────── splash ───────────── */
+  function runSplash() {
+    renderSplash();
+    const started = performance.now();
+    const dur = 1400;
+    let done = false;
+
+    function finish() {
+      if (done) return;
+      done = true;
+      el.splash.classList.add('is-done');
+      document.body.classList.remove('is-locked');
+      window.setTimeout(() => {
+        if (el.splash && el.splash.parentNode) el.splash.parentNode.removeChild(el.splash);
+        window.__SPLASH_DONE__ = true;
+      }, 430);
+    }
+
+    function tick(now) {
+      const k = Math.min(1, (now - started) / dur);
+      if (el.splashFill) el.splashFill.style.width = (k * 100).toFixed(0) + '%';
+      if (el.flareSpark) el.flareSpark.style.left = (k * 100).toFixed(1) + '%';
+      if (k < 1) requestAnimationFrame(tick);
+      else window.setTimeout(finish, 110);
+    }
+
+    requestAnimationFrame(tick);
+    window.setTimeout(finish, 2100);
+  }
+
+  /* ───────────── events ───────────── */
+  function bind() {
+    // Mode switching
+    el.modeSwitch.addEventListener('click', (ev) => {
+      const btn = ev.target.closest('.mode-btn');
+      if (!btn) return;
+      setMode(btn.dataset.mode);
+    });
+
+    // Betting spots
+    $$('[data-spot]').forEach((spotEl) => {
+      spotEl.addEventListener('click', () => placeBet(spotEl.dataset.spot, S.chip));
+      spotEl.addEventListener('keydown', (ev) => {
+        if (ev.key === 'Enter' || ev.key === ' ') {
+          ev.preventDefault();
+          placeBet(spotEl.dataset.spot, S.chip);
+        }
+      });
+    });
+
+    // Chips
+    el.chipRow.addEventListener('click', (ev) => {
+      const chip = ev.target.closest('.chip');
+      if (!chip) return;
+      setChip(Number(chip.dataset.chip));
+    });
+
+    el.halfBtn.addEventListener('click', () => setChip(Math.max(1000, S.chip / 2)));
+    el.doubleBtn.addEventListener('click', () => setChip(Math.min(MAX_CHIP, S.chip * 2)));
+
+    el.rebetBtn.addEventListener('click', rebet);
+    el.clearBtn.addEventListener('click', clearBets);
+    el.undoBtn.addEventListener('click', undo);
+    el.dealBtn.addEventListener('click', deal);
+
+    el.refillBtn.addEventListener('click', () => {
+      refill(START_BALANCE);
+      toast('가상 머니 +₩1,000,000 충전');
+    });
+
+    el.reshuffleBtn.addEventListener('click', () => {
+      if (S.phase !== 'betting') { toast('핸드 중에는 셔플할 수 없습니다'); return; }
+      S.shoe.reshuffle();
+      renderShoe();
+      window.Sound && Sound.card();
+      toast('슈를 새로 셔플했습니다 · 416장');
+    });
+
+    $('#shoeEl').addEventListener('click', () => {
+      if (S.phase !== 'betting') return;
+      S.shoe.reshuffle();
+      renderShoe();
+      window.Sound && Sound.card();
+      toast('슈를 새로 셔플했습니다 · 416장');
+    });
+
+    el.revealAllBtn.addEventListener('click', revealAll);
+
+    // mobile roadmap drawer
+    const roadToggle = $('#roadToggle');
+    const roadClose = $('#roadClose');
+    const roadScrim = $('#roadScrim');
+    const setRoadOpen = (open) => {
+      document.body.classList.toggle('road-open', open);
+      if (roadToggle) roadToggle.setAttribute('aria-expanded', String(open));
+    };
+    if (roadToggle) roadToggle.addEventListener('click', () => setRoadOpen(!document.body.classList.contains('road-open')));
+    if (roadClose) roadClose.addEventListener('click', () => setRoadOpen(false));
+    if (roadScrim) roadScrim.addEventListener('click', () => setRoadOpen(false));
+
+    el.soundBtn.addEventListener('click', () => {
+      S.settings.sound = !S.settings.sound;
+      applySound();
+      if (S.settings.sound) window.Sound && Sound.click();
+      save();
+    });
+
+    el.infoBtn.addEventListener('click', openModal);
+    el.modalClose.addEventListener('click', closeModal);
+    el.modalBack.addEventListener('click', (ev) => {
+      if (ev.target === el.modalBack) closeModal();
+    });
+
+    el.optSound.addEventListener('change', () => {
+      S.settings.sound = el.optSound.checked;
+      applySound();
+      save();
+    });
+    el.optSqueeze.addEventListener('change', () => {
+      S.settings.squeeze = el.optSqueeze.checked;
+      if (S.settings.squeeze && S.mode === 'speed') toast('스피드 테이블은 항상 즉시 오픈입니다');
+      save();
+    });
+    el.optNoComm.addEventListener('change', () => {
+      S.settings.noCommission = el.optNoComm.checked;
+      save();
+    });
+    el.optAutoRebet.addEventListener('change', () => {
+      S.settings.autoRebet = el.optAutoRebet.checked;
+      save();
+    });
+
+    el.modalRefill.addEventListener('click', () => {
+      refill(START_BALANCE);
+      el.modalBalance.textContent = won(S.balance);
+      toast('가상 머니 +₩1,000,000');
+    });
+
+    el.modalReset.addEventListener('click', () => {
+      if (!resetArmed) {
+        resetArmed = true;
+        el.modalReset.textContent = '한 번 더 누르면 초기화';
+        clearTimeout(resetTimer);
+        resetTimer = setTimeout(() => {
+          resetArmed = false;
+          el.modalReset.textContent = '잔액 초기화';
+        }, 3000);
+        return;
+      }
+      resetArmed = false;
+      clearTimeout(resetTimer);
+      el.modalReset.textContent = '잔액 초기화';
+      refundAll(true);
+      S.balance = START_BALANCE;
+      S.stats = { hands: 0, player: 0, banker: 0, tie: 0, playerPair: 0, bankerPair: 0, wagered: 0, profit: 0 };
+      S.history = [];
+      S.lastBets = null;
+      S.bonus = [];
+      S.hand = null;
+      S.phase = 'betting';
+      S.shoe = new E.Shoe(8);
+      clearTable();
+      renderBonusEmpty();
+      renderAll();
+      renderSoundBtn();
+      el.modalBalance.textContent = won(S.balance);
+      save();
+      toast('가상 머니와 기록을 초기화했습니다');
+    });
+
+    el.resultClose.addEventListener('click', () => {
+      el.result.classList.remove('on');
+      clearTimeout(resultTimer);
+    });
+
+    el.roadTabs.addEventListener('click', (ev) => {
+      const tab = ev.target.closest('.road-tab');
+      if (!tab) return;
+      roadView = tab.dataset.road;
+      $$('.road-tab', el.roadTabs).forEach((t) => t.classList.toggle('is-active', t === tab));
+      el.bead.hidden = roadView !== 'bead';
+      el.bigroad.hidden = roadView !== 'big';
+      window.Sound && Sound.click();
+    });
+
+    // ── account / auth
+    el.accountBtn.addEventListener('click', () => openAuth(DB.current ? 'account' : 'login'));
+    el.logoutBtn.addEventListener('click', (ev) => { ev.stopPropagation(); logout(); });
+    el.authClose.addEventListener('click', closeAuth);
+    el.authBack.addEventListener('click', (ev) => { if (ev.target === el.authBack) closeAuth(); });
+    el.authTabs.addEventListener('click', (ev) => {
+      const b = ev.target.closest('button[data-auth]');
+      if (b) setAuthMode(b.dataset.auth);
+    });
+    el.authForm.addEventListener('submit', submitAuth);
+    el.guestBtn.addEventListener('click', closeAuth);
+    el.apLogout.addEventListener('click', logout);
+    el.apSwitch.addEventListener('click', () => setAuthMode('login'));
+
+    // ── hidden admin
+    const brand = $('#brand');
+    if (brand) {
+      brand.addEventListener('click', (ev) => { ev.preventDefault(); });
+      brand.addEventListener('dblclick', (ev) => { ev.preventDefault(); openPin(); });
+      let lastTap = 0;
+      brand.addEventListener('pointerup', () => {
+        const now = Date.now();
+        if (now - lastTap < 360) openPin();
+        lastTap = now;
+      });
+    }
+    el.pinClose.addEventListener('click', closePin);
+    el.pinBack.addEventListener('click', (ev) => { if (ev.target === el.pinBack) closePin(); });
+    el.keypad.addEventListener('click', (ev) => {
+      const b = ev.target.closest('button[data-key]');
+      if (b) pressKey(b.dataset.key);
+    });
+
+    el.adminClose.addEventListener('click', closeAdmin);
+    el.adminBack.addEventListener('click', (ev) => { if (ev.target === el.adminBack) closeAdmin(); });
+    el.admUsers.addEventListener('click', (ev) => {
+      const b = ev.target.closest('button[data-op]');
+      if (!b) return;
+      const row = b.closest('.adm-user');
+      if (!row) return;
+      adjustUser(row.dataset.uid, b.dataset.op);
+    });
+    $$('.adm-presets button').forEach((b) => {
+      b.addEventListener('click', () => {
+        const preset = b.dataset.preset;
+        if (preset === 'reset') {
+          adjustUser(DB.current || 'guest', 'reset');
+          return;
+        }
+        const val = Number(preset) || 0;
+        el.admAmount.value = String(Math.abs(val));
+        adjustUser(DB.current || 'guest', val >= 0 ? 'plus' : 'minus', Math.abs(val));
+      });
+    });
+    el.ghTest.addEventListener('click', ghTest);
+    el.ghPush.addEventListener('click', ghPush);
+    el.ghPull.addEventListener('click', ghPull);
+
+    // Unlock audio on first gesture
+    const unlock = () => { window.Sound && Sound.unlock(); window.removeEventListener('pointerdown', unlock); };
+    window.addEventListener('pointerdown', unlock, { once: true });
+
+    // Keyboard shortcuts
+    window.addEventListener('keydown', (ev) => {
+      if (ev.target && /INPUT|TEXTAREA|SELECT/.test(ev.target.tagName)) return;
+      if (ev.code === 'Space') {
+        ev.preventDefault();
+        if (S.phase === 'betting') deal();
+        else if (S.phase === 'reveal') revealAll();
+      } else if (ev.key === 'z' || ev.key === 'Z') {
+        undo();
+      } else if (ev.key === 'r' || ev.key === 'R') {
+        rebet();
+      } else if (ev.key === 'Escape') {
+        closeModal();
+      }
+    });
+
+    window.addEventListener('resize', () => {
+      if (window.FX) FX.refresh();
+      renderAccount();
+    });
+
+    document.addEventListener('visibilitychange', () => {
+      if (document.hidden) {
+        if (window.FX) FX.stop();
+      } else if (window.FX) {
+        FX.setMode(S.mode);
+      }
+    });
+  }
+
+
+  /* ───────────── accounts ───────────── */
+  const ADMIN_PIN = '6160';
+  let authMode = 'login';
+  let pinBuffer = '';
+  let pinResetTimer = 0;
+
+  const escapeHtml = (str) => String(str == null ? '' : str).replace(/[&<>"']/g, (c) => (
+    { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]
+  ));
+
+  async function hashPin(pin) {
+    const raw = 'enp-baccarat::' + pin;
+    try {
+      const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(raw));
+      return Array.from(new Uint8Array(buf)).map((b) => b.toString(16).padStart(2, '0')).join('');
+    } catch (err) {
+      let h = 2166136261;
+      for (let i = 0; i < raw.length; i++) { h ^= raw.charCodeAt(i); h = Math.imul(h, 16777619); }
+      return 'fnv' + (h >>> 0).toString(16);
+    }
+  }
+
+  function renderAccount() {
+    const p = activeProfile();
+    const logged = !!DB.current;
+    if (!el.accountBtn) return;
+    el.avatar.textContent = String(p.nick || p.id || 'G').trim().slice(0, 1).toUpperCase() || 'G';
+    const narrow = window.matchMedia('(max-width: 430px)').matches;
+    el.accName.textContent = logged ? (p.nick || p.id) : (narrow ? '로그인' : '로그인·가입');
+    el.accountBtn.classList.toggle('is-guest', !logged);
+    el.accountBtn.title = logged ? `${p.nick || p.id} · @${p.id}` : '로그인 또는 회원가입';
+    el.logoutBtn.hidden = !logged;
+  }
+
+  function applyProfile(p) {
+    S.balance = p.balance;
+    S.stats = p.stats || freshStats();
+    S.history = Array.isArray(p.history) ? p.history : [];
+    S.lastBets = p.lastBets || null;
+    S.bets = emptyBets();
+    S.stack = [];
+    S.hand = null;
+    S.bonus = [];
+    S.phase = 'betting';
+    S.shoe = new E.Shoe(8);
+    clearTable();
+    renderBonusEmpty();
+    renderAll();
+    renderAccount();
+  }
+
+  function setAuthMsg(msg, ok) {
+    el.authMsg.textContent = msg || '';
+    el.authMsg.classList.toggle('ok', !!ok);
+  }
+
+  function setAuthMode(mode) {
+    authMode = mode;
+    const isAccount = mode === 'account';
+    const isSignup = mode === 'signup';
+    el.authTabs.hidden = isAccount;
+    el.authForm.hidden = isAccount;
+    el.authProfile.hidden = !isAccount;
+    el.guestBtn.hidden = isAccount;
+    el.nickFld.classList.toggle('is-hidden', !isSignup);
+    el.pin2Fld.classList.toggle('is-hidden', !isSignup);
+    el.authSubmit.textContent = isSignup ? '가입하고 시작하기' : '로그인';
+    $$('button[data-auth]', el.authTabs).forEach((b) => b.classList.toggle('is-active', b.dataset.auth === mode));
+    setAuthMsg('');
+    if (isAccount) {
+      const p = activeProfile();
+      el.apAvatar.textContent = String(p.nick || p.id || 'E').trim().slice(0, 1).toUpperCase();
+      el.apName.textContent = p.nick || p.id;
+      el.apBalance.textContent = won(S.balance);
+    }
+  }
+
+  function openAuth(mode) {
+    setAuthMode(mode || (DB.current ? 'account' : 'login'));
+    el.authBack.hidden = false;
+    el.authBack.classList.remove('hidden');
+    document.body.classList.add('is-locked');
+    window.setTimeout(() => { if (!DB.current && el.authId) el.authId.focus(); }, 80);
+    window.Sound && Sound.click();
+  }
+
+  function closeAuth() {
+    el.authBack.hidden = true;
+    document.body.classList.remove('is-locked');
+  }
+
+  async function submitAuth(ev) {
+    ev.preventDefault();
+    const id = (el.authId.value || '').trim().toLowerCase();
+    const nick = (el.authNick.value || '').trim();
+    const pin = (el.authPin.value || '').trim();
+    const pin2 = (el.authPin2.value || '').trim();
+    setAuthMsg('');
+
+    if (!/^[a-z0-9_]{3,14}$/.test(id)) { setAuthMsg('아이디는 3~14자 영문·숫자·밑줄만 가능합니다'); return; }
+    if (!/^\d{4,6}$/.test(pin)) { setAuthMsg('PIN은 4~6자리 숫자입니다'); return; }
+
+    if (authMode === 'signup') {
+      if (DB.users[id]) { setAuthMsg('이미 사용 중인 아이디입니다'); return; }
+      if (pin !== pin2) { setAuthMsg('PIN 확인이 일치하지 않습니다'); return; }
+      const hash = await hashPin(pin);
+      DB.users[id] = Object.assign(freshProfile(id, nick), { pin: hash });
+      save();
+      DB.current = id;
+      applyProfile(DB.users[id]);
+      save();
+      setAuthMsg('가입 완료 · ₩1,000,000 가상 머니 지급', true);
+      window.Sound && Sound.win();
+      toast(`${nick || id}님, 가입을 환영합니다`);
+      window.setTimeout(closeAuth, 620);
+    } else {
+      const u = DB.users[id];
+      if (!u) { setAuthMsg('아이디를 찾을 수 없습니다'); return; }
+      const hash = await hashPin(pin);
+      if (u.pin !== hash) { setAuthMsg('PIN이 올바르지 않습니다'); return; }
+      save();
+      DB.current = id;
+      applyProfile(u);
+      save();
+      toast(`${u.nick || u.id}님 환영합니다`);
+      window.setTimeout(closeAuth, 220);
+    }
+  }
+
+  function logout() {
+    save();
+    DB.current = null;
+    applyProfile(DB.guest);
+    save();
+    closeAuth();
+    toast('로그아웃 · 게스트로 플레이합니다');
+    window.Sound && Sound.click();
+  }
+
+  /* ───────────── hidden admin (logo double-tap → 6160) ───────────── */
+  function openPin() {
+    pinBuffer = '';
+    renderPin();
+    el.pinMsg.textContent = 'PIN을 입력하세요';
+    el.pinMsg.classList.remove('err');
+    el.pinBack.hidden = false;
+    document.body.classList.add('is-locked');
+  }
+
+  function closePin() {
+    el.pinBack.hidden = true;
+    document.body.classList.remove('is-locked');
+  }
+
+  function renderPin() {
+    Array.from(el.pinDots.children).forEach((d, i) => d.classList.toggle('on', i < pinBuffer.length));
+  }
+
+  function pressKey(k) {
+    clearTimeout(pinResetTimer);
+    window.Sound && Sound.click();
+    if (k === 'clear') { pinBuffer = ''; renderPin(); return; }
+    if (k === 'back') { pinBuffer = pinBuffer.slice(0, -1); renderPin(); return; }
+    if (pinBuffer.length >= 4) return;
+    pinBuffer += k;
+    renderPin();
+    if (pinBuffer.length === 4) window.setTimeout(checkPin, 130);
+  }
+
+  function checkPin() {
+    if (pinBuffer === ADMIN_PIN) {
+      closePin();
+      openAdmin();
+      return;
+    }
+    el.pinPanel.classList.add('shake');
+    el.pinMsg.textContent = 'PIN이 올바르지 않습니다';
+    el.pinMsg.classList.add('err');
+    window.Sound && Sound.lose();
+    clearTimeout(pinResetTimer);
+    pinResetTimer = window.setTimeout(() => {
+      el.pinPanel.classList.remove('shake');
+      pinBuffer = '';
+      renderPin();
+      el.pinMsg.textContent = 'PIN을 입력하세요';
+      el.pinMsg.classList.remove('err');
+    }, 620);
+  }
+
+  function openAdmin() {
+    el.adminBack.hidden = false;
+    document.body.classList.add('is-locked');
+    if (el.ghRepo) el.ghRepo.value = DB.admin.repo || '';
+    if (el.ghPat) el.ghPat.value = DB.admin.pat || '';
+    renderAdmin();
+    setSyncStatus(DB.admin.repo ? '리포지토리 설정됨' : '대기 중');
+    window.Sound && Sound.click();
+  }
+
+  function closeAdmin() {
+    el.adminBack.hidden = true;
+    document.body.classList.remove('is-locked');
+  }
+
+  function renderAdmin() {
+    const rows = [];
+    const cur = DB.current || 'guest';
+    if (DB.users[cur]) rows.push({ key: cur, p: DB.users[cur], guest: false });
+    else rows.push({ key: 'guest', p: DB.guest, guest: true });
+    for (const u of Object.values(DB.users)) {
+      if (u.id === cur) continue;
+      rows.push({ key: u.id, p: u, guest: false });
+    }
+    if (cur !== 'guest') rows.push({ key: 'guest', p: DB.guest, guest: true });
+
+    el.admUsers.innerHTML = rows.map((r) => {
+      const p = r.p;
+      const label = r.guest ? '게스트' : (p.nick || p.id);
+      const initial = String(label).trim().slice(0, 1).toUpperCase() || 'G';
+      return `<div class="adm-user ${r.key === cur ? 'is-current' : ''}" data-uid="${escapeHtml(r.key)}">
+        <span class="au-avatar">${escapeHtml(initial)}</span>
+        <div class="au-id"><b>${escapeHtml(label)}</b><i>${r.guest ? 'GUEST' : '@' + escapeHtml(p.id)}${r.key === cur ? ' · 현재 세션' : ''}</i></div>
+        <span class="au-bal">${won(p.balance)}</span>
+        <div class="au-btns">
+          <button data-op="minus" class="minus" aria-label="차감">−</button>
+          <button data-op="plus" class="plus" aria-label="추가">+</button>
+          <button data-op="reset" class="reset" aria-label="잔액 초기화">초기화</button>
+        </div>
+      </div>`;
+    }).join('');
+  }
+
+  function adjustUser(uid, op, override) {
+    const target = uid === 'guest' ? DB.guest : DB.users[uid];
+    if (!target) return;
+    const typed = override != null ? Math.abs(Math.round(override))
+      : Math.abs(Math.round(Number(String(el.admAmount.value || '').replace(/[^0-9]/g, '')) || 0));
+    if (op === 'plus') target.balance = Math.round(target.balance + typed);
+    else if (op === 'minus') target.balance = Math.max(0, Math.round(target.balance - typed));
+    else target.balance = START_BALANCE;
+
+    if (uid === (DB.current || 'guest')) S.balance = target.balance;
+    save();
+    renderBalance();
+    renderAccount();
+    renderAdmin();
+    pulseNode($('#balancePill'));
+    window.Sound && Sound.chip();
+    toast(`${uid === 'guest' ? '게스트' : (target.nick || uid)} · ${won(target.balance)}`);
+  }
+
+  /* ───────────── github sync (optional) ───────────── */
+  function setSyncStatus(msg, cls) {
+    if (!el.ghStatus) return;
+    el.ghStatus.textContent = msg;
+    el.ghStatus.className = 'sync-status' + (cls ? ' ' + cls : '');
+  }
+
+  function b64encode(str) {
+    const bytes = new TextEncoder().encode(str);
+    let bin = '';
+    bytes.forEach((b) => { bin += String.fromCharCode(b); });
+    return btoa(bin);
+  }
+
+  function b64decode(b64) {
+    const bin = atob(String(b64).replace(/\s+/g, ''));
+    const bytes = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+    return new TextDecoder().decode(bytes);
+  }
+
+  function syncCreds() {
+    DB.admin.repo = (el.ghRepo.value || '').trim();
+    DB.admin.pat = (el.ghPat.value || '').trim();
+    save();
+    return DB.admin;
+  }
+
+  async function ghApi(path, method, body) {
+    const { repo, pat } = syncCreds();
+    if (!repo || !pat) throw new Error('리포지토리(owner/repo)와 PAT를 입력하세요');
+    const res = await fetch('https://api.github.com/repos/' + repo + path, {
+      method: method || 'GET',
+      headers: {
+        Authorization: 'Bearer ' + pat,
+        Accept: 'application/vnd.github+json',
+        'Content-Type': 'application/json'
+      },
+      body: body ? JSON.stringify(body) : undefined
+    });
+    let data = null;
+    try { data = await res.json(); } catch (e) { data = null; }
+    if (!res.ok) throw new Error((data && data.message) || ('HTTP ' + res.status));
+    return data;
+  }
+
+  async function ghTest() {
+    try {
+      setSyncStatus('확인 중…');
+      const repo = await ghApi('');
+      setSyncStatus('연결됨 · ' + repo.full_name + (repo.private ? ' (비공개)' : ''), 'ok');
+    } catch (e) {
+      setSyncStatus('실패 · ' + e.message, 'err');
+    }
+  }
+
+  async function ghPush() {
+    try {
+      setSyncStatus('올리는 중…');
+      const payload = {
+        app: 'enp-baccarat',
+        updatedAt: new Date().toISOString(),
+        guest: { balance: DB.guest.balance, stats: DB.guest.stats, history: (DB.guest.history || []).slice(-120) },
+        users: {}
+      };
+      for (const [k, u] of Object.entries(DB.users)) {
+        payload.users[k] = {
+          id: u.id, nick: u.nick, pin: u.pin, balance: u.balance,
+          stats: u.stats, history: (u.history || []).slice(-120), createdAt: u.createdAt
+        };
+      }
+      const path = '/contents/baccarat/users.json';
+      let sha;
+      try {
+        const cur = await ghApi(path);
+        sha = cur && cur.sha;
+      } catch (e) {
+        if (!/Not Found|404/i.test(e.message)) throw e;
+      }
+      const body = { message: 'ENP Baccarat: sync ' + new Date().toISOString(), content: b64encode(JSON.stringify(payload, null, 2)) };
+      if (sha) body.sha = sha;
+      await ghApi(path, 'PUT', body);
+      setSyncStatus('완료 · ' + Object.keys(DB.users).length + '명 올림', 'ok');
+      toast('GitHub에 회원 정보를 올렸습니다');
+    } catch (e) {
+      setSyncStatus('실패 · ' + e.message, 'err');
+    }
+  }
+
+  async function ghPull() {
+    try {
+      setSyncStatus('불러오는 중…');
+      const data = await ghApi('/contents/baccarat/users.json');
+      if (!data || !data.content) throw new Error('파일이 비어 있습니다');
+      const remote = JSON.parse(b64decode(data.content));
+      if (!remote || !remote.users) throw new Error('형식이 올바르지 않습니다');
+      DB.users = remote.users;
+      if (remote.guest) DB.guest = Object.assign(DB.guest, remote.guest);
+      if (DB.current && !DB.users[DB.current]) DB.current = null;
+      const p = activeProfile();
+      S.balance = p.balance;
+      S.stats = p.stats || freshStats();
+      S.history = p.history || [];
+      S.lastBets = p.lastBets || null;
+      save();
+      renderAll();
+      renderAccount();
+      renderAdmin();
+      setSyncStatus('완료 · ' + Object.keys(DB.users).length + '명 불러옴', 'ok');
+      toast('GitHub에서 회원 정보를 불러왔습니다');
+    } catch (e) {
+      setSyncStatus('실패 · ' + e.message, 'err');
+    }
+  }
+
+  /* ───────────── splash content ───────────── */
+  function renderSplash() {
+    const cfg = MODES[S.mode];
+    if (el.splashEn) el.splashEn.textContent = cfg.en;
+    if (el.splashKo) el.splashKo.textContent = cfg.name;
+    if (el.splashArch) el.splashArch.textContent = cfg.arch;
+    if (el.splashTag) el.splashTag.textContent = cfg.tag;
+  }
+
+  /* ───────────── boot ───────────── */
+  function boot() {
+    document.body.classList.add('is-locked');
+    if (el.fx) el.felt.prepend(el.fx);
+    if (window.FX) {
+      FX.init(el.fx);
+      FX.setMode(S.mode);
+    }
+
+    applyModeCopy();
+    applySound();
+    renderSplash();
+    renderAccount();
+    renderAll();
+    bind();
+    runSplash();
+
+    if (S.settings.squeeze && S.mode === 'speed') {
+      // speed always instant
+    }
+
+    window.__bac = {
+      get state() { return S; },
+      engine: E,
+      deal,
+      placeBet,
+      setMode,
+      setChip,
+      rebet,
+      undo,
+      clearBets: clearBets,
+      refill,
+      revealAll,
+      finishHand,
+      renderAll,
+      renderBonusShowcase() { renderBonusResult(); updateLiveMults(); }
+    };
+    window.__APP_READY__ = true;
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', boot);
+  } else {
+    boot();
+  }
+})();

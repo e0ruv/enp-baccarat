@@ -1,0 +1,696 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, shrink-to-fit=no" />
+<meta name="theme-color" content="#07090A" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+<meta name="description" content="가상 머니 전용 모의 바카라 시뮬레이터. 스피드 · 벚꽃 · 눈꽃 3가지 테이블, 8덱 슈, 출목표, 보너스 배수." />
+<title>ENP BACCARAT · 가상 머니 모의 바카라</title>
+<link rel="stylesheet" href="css/style.css" />
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Crect width='24' height='24' rx='6' fill='%230A0C0D'/%3E%3Cpath d='M13.3 3 5 13.5h5.2L9.5 21l8.4-11.5h-5.2L13.3 3Z' fill='%23D9B25F'/%3E%3C/svg%3E" />
+</head>
+<body data-mode="sakura">
+
+<!-- ══════════ SPLASH ══════════ -->
+<div class="splash" id="splash" aria-hidden="true">
+  <div class="splash-vignette"></div>
+  <div class="splash-stage">
+    <svg class="splash-arch" viewBox="0 0 440 84" aria-hidden="true">
+      <defs>
+        <path id="archPath" d="M30 78 Q220 -8 410 78" fill="none"/>
+      </defs>
+      <text class="arch-text"><textPath href="#archPath" startOffset="50%" text-anchor="middle" id="splashArch">2x ~ 512x</textPath></text>
+    </svg>
+
+    <div class="plaque" id="splashPlaque">
+      <svg class="plaque-veins" viewBox="0 0 400 120" preserveAspectRatio="none" aria-hidden="true">
+        <path d="M18 102 L46 78 L34 70 L64 46 L52 40 L80 16"/>
+        <path d="M382 102 L354 78 L366 70 L336 46 L348 40 L320 16"/>
+        <path d="M146 110 L166 90 L158 84 L180 66"/>
+        <path d="M254 110 L234 90 L242 84 L220 66"/>
+      </svg>
+      <span class="pl-corner tl"></span><span class="pl-corner tr"></span>
+      <span class="pl-corner bl"></span><span class="pl-corner br"></span>
+      <div class="plaque-word" id="splashEn">BLOSSOM</div>
+      <div class="plaque-tag" id="splashTag">SAKURA BONUS</div>
+    </div>
+
+    <div class="splash-ko" id="splashKo">벚꽃 바카라</div>
+    <div class="splash-sub">가상 머니 · 모의 테이블</div>
+
+    <div class="splash-flare">
+      <div class="flare-track"><i id="splashFill"></i></div>
+      <span class="flare-spark" id="flareSpark"></span>
+    </div>
+
+    <div class="splash-provide">제공</div>
+    <div class="splash-enp">
+      <span class="enp-mark">
+        <svg viewBox="0 0 34 34" aria-hidden="true">
+          <path d="M17 2.2 30.3 9.9v14.2L17 31.8 3.7 24.1V9.9L17 2.2Z" fill="none" stroke="currentColor" stroke-width="1.5"/>
+          <path d="M12 11.2h10M12 17h7.4M12 22.8h10" stroke="currentColor" stroke-width="2.1" stroke-linecap="round"/>
+        </svg>
+      </span>
+      <span class="enp-word">ENP</span>
+    </div>
+  </div>
+</div>
+
+<div class="app">
+
+  <!-- ══════════ TOP BAR ══════════ -->
+  <header class="topbar">
+    <div class="topbar-left">
+      <a class="brand" href="#" id="brand" aria-label="ENP Baccarat">
+        <span class="brand-mark"><b>E</b><span class="brand-glyph" id="brandGlyph">🌸</span></span>
+        <span class="brand-text"><b>ENP</b><i>BACCARAT</i></span>
+      </a>
+      <span class="vm-badge">가상 머니 · 모의 테이블</span>
+    </div>
+
+    <nav class="mode-switch" id="modeSwitch" aria-label="바카라 모드 선택">
+      <button class="mode-btn" data-mode="speed"><span class="mi">🚀</span><span class="mt">스피드</span></button>
+      <button class="mode-btn is-active" data-mode="sakura"><span class="mi">🌸</span><span class="mt">벚꽃</span></button>
+      <button class="mode-btn" data-mode="snow"><span class="mi">❄️</span><span class="mt">눈꽃</span></button>
+    </nav>
+
+    <div class="topbar-right">
+      <button class="account-btn is-guest" id="accountBtn" aria-label="계정 · 로그인 또는 가입">
+        <span class="avatar" id="avatar">G</span>
+        <span class="acc-name" id="accName">로그인·가입</span>
+      </button>
+      <button class="logout-btn" id="logoutBtn" hidden aria-label="로그아웃" title="로그아웃">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 4h3a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-3" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/><path d="M10 8l-4 4 4 4M6 12h9" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </button>
+      <div class="balance-pill" id="balancePill" title="가상 머니 잔액">
+        <span class="bp-cur">₩</span>
+        <span class="bp-amount" id="balance">1,000,000</span>
+        <button class="bp-refill" id="refillBtn" title="가상 머니 충전">충전</button>
+      </div>
+      <button class="ico-btn" id="soundBtn" aria-label="사운드 켜기/끄기" title="사운드"></button>
+      <button class="ico-btn" id="infoBtn" aria-label="설정 및 규칙" title="설정 및 규칙">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" stroke-width="1.7"/><path d="M12 10.6v5.2" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><circle cx="12" cy="7.9" r="1.05" fill="currentColor"/></svg>
+      </button>
+    </div>
+  </header>
+
+  <!-- ══════════ MAIN ══════════ -->
+  <main class="layout">
+
+    <section class="table-wrap" aria-label="바카라 테이블">
+
+      <!-- ─── STUDIO BACKDROP ─── -->
+      <div class="studio" aria-hidden="true">
+        <div class="st-wall"></div>
+        <div class="st-curtain c1"></div>
+        <div class="st-curtain c2"></div>
+        <div class="st-pillar p1"><i class="st-pillar-cap"></i></div>
+        <div class="st-pillar p2"><i class="st-pillar-cap"></i></div>
+        <div class="st-pillar p3"><i class="st-pillar-cap"></i></div>
+        <div class="st-pillar p4"><i class="st-pillar-cap"></i></div>
+        <div class="st-arch"></div>
+        <div class="st-ghost gh-p">PLAYER</div>
+        <div class="st-ghost gh-b">BANKER</div>
+        <div class="st-beam b1"></div>
+        <div class="st-beam b2"></div>
+        <div class="st-beam b3"></div>
+        <div class="st-cone"></div>
+        <div class="st-floor"></div>
+        <div class="st-vignette"></div>
+      </div>
+
+      <!-- ─── 3D TABLE ─── -->
+      <div class="table3d">
+        <div class="felt" id="felt">
+          <canvas id="fx" class="fx-canvas" aria-hidden="true"></canvas>
+          <div class="felt-spot" aria-hidden="true"></div>
+          <div class="felt-grain" aria-hidden="true"></div>
+          <div class="felt-ring" aria-hidden="true"></div>
+          <div class="felt-watermark" id="feltMark" aria-hidden="true">🌸</div>
+
+          <!-- topline -->
+          <div class="table-topline">
+            <span class="tbl-name" id="tableName">벚꽃 바카라</span>
+            <span class="tbl-vm">가상 머니</span>
+            <span class="tbl-rule" id="tableRule">벚꽃 카드 1–5장 · 2x ~ 8x 중첩 · 수수료 없음</span>
+            <div class="shoe-meter" aria-hidden="true">
+              <i id="shoeBar"></i>
+            </div>
+            <span class="shoe-info" id="shoeInfo">416 / 416</span>
+            <button class="mini-btn" id="roadToggle" aria-expanded="false">출목표</button>
+            <button class="mini-btn" id="reshuffleBtn">셔플</button>
+          </div>
+
+          <div class="live-mult" id="liveMult"></div>
+
+          <!-- dealer -->
+          <div class="dealer" id="dealer" aria-hidden="true">
+            <div class="dealer-halo"></div>
+            <svg class="dealer-svg" viewBox="0 0 400 300" preserveAspectRatio="xMidYMax meet">
+              <defs>
+                <linearGradient id="dSkin" x1=".25" y1="0" x2=".8" y2="1">
+                  <stop offset="0" stop-color="#FBE4CE"/><stop offset=".45" stop-color="#EECBAE"/><stop offset=".85" stop-color="#D3A582"/><stop offset="1" stop-color="#BE8C6A"/>
+                </linearGradient>
+                <linearGradient id="dVest" x1=".15" y1="0" x2=".9" y2="1">
+                  <stop offset="0" stop-color="#2C2C34"/><stop offset=".38" stop-color="#101014"/><stop offset=".75" stop-color="#08080B"/><stop offset="1" stop-color="#1A1218"/>
+                </linearGradient>
+                <linearGradient id="dVestLight" x1=".2" y1="0" x2=".8" y2="1">
+                  <stop offset="0" stop-color="#3A3A44"/><stop offset=".6" stop-color="#191920"/><stop offset="1" stop-color="#0D0D12"/>
+                </linearGradient>
+                <linearGradient id="dShirt" x1=".1" y1="0" x2=".9" y2="1">
+                  <stop offset="0" stop-color="#CE3149"/><stop offset=".42" stop-color="#94152B"/><stop offset=".8" stop-color="#6A0E1E"/><stop offset="1" stop-color="#4C0915"/>
+                </linearGradient>
+                <linearGradient id="dGoldTrim" x1="0" y1="0" x2="1" y2="1">
+                  <stop offset="0" stop-color="#FFF6DA"/><stop offset=".4" stop-color="#E8BE6C"/><stop offset=".75" stop-color="#B98C3A"/><stop offset="1" stop-color="#8A6524"/>
+                </linearGradient>
+                <linearGradient id="dHair" x1=".2" y1="0" x2=".75" y2="1">
+                  <stop offset="0" stop-color="#4B2F30"/><stop offset=".35" stop-color="#2A191B"/><stop offset="1" stop-color="#0D0708"/>
+                </linearGradient>
+                <linearGradient id="dHairFront" x1=".3" y1="0" x2=".8" y2="1">
+                  <stop offset="0" stop-color="#3B2426"/><stop offset="1" stop-color="#120A0B"/>
+                </linearGradient>
+                <radialGradient id="dRim" cx=".28" cy=".18" r=".78">
+                  <stop offset="0" stop-color="#FFE9BC" stop-opacity=".55"/><stop offset=".55" stop-color="#FFE9BC" stop-opacity=".12"/><stop offset="1" stop-color="#FFE9BC" stop-opacity="0"/>
+                </radialGradient>
+                <radialGradient id="dCheek" cx=".5" cy=".5" r=".5">
+                  <stop offset="0" stop-color="#E28E8A" stop-opacity=".34"/><stop offset="1" stop-color="#E28E8A" stop-opacity="0"/>
+                </radialGradient>
+                <linearGradient id="dGlove" x1=".2" y1="0" x2=".8" y2="1">
+                  <stop offset="0" stop-color="#FFFAF1"/><stop offset=".55" stop-color="#EFE5D6"/><stop offset="1" stop-color="#C9BBA8"/>
+                </linearGradient>
+              </defs>
+
+              <g class="dealer-breathe">
+                <!-- ══ torso ══ -->
+                <path d="M200 152 L150 168 Q120 182 112 222 L98 300 L302 300 L288 222 Q280 182 250 168 Z" fill="url(#dShirt)"/>
+                <!-- satin lapels / vest -->
+                <path d="M200 170 L174 160 L190 300 L98 300 L112 222 Q120 182 150 168 Z" fill="url(#dVest)"/>
+                <path d="M200 170 L226 160 L210 300 L302 300 L288 222 Q280 182 250 168 Z" fill="url(#dVest)"/>
+                <!-- lapel highlight strips -->
+                <path d="M177 161 L192 300" stroke="url(#dVestLight)" stroke-width="9" stroke-linecap="round" opacity=".95"/>
+                <path d="M223 161 L208 300" stroke="url(#dVestLight)" stroke-width="9" stroke-linecap="round" opacity=".8"/>
+                <path d="M181 163 L195 298" stroke="url(#dGoldTrim)" stroke-width="1.2" opacity=".95"/>
+                <path d="M219 163 L205 298" stroke="url(#dGoldTrim)" stroke-width="1.2" opacity=".8"/>
+                <path d="M150 168 Q120 182 112 222 L98 300" fill="none" stroke="#FFE7B4" stroke-opacity=".2" stroke-width="2.4"/>
+                <path d="M250 168 Q280 182 288 222 L302 300" fill="none" stroke="#FFE7B4" stroke-opacity=".1" stroke-width="2.4"/>
+
+                <!-- ══ collar + bow tie ══ -->
+                <path d="M182 146 L200 164 L218 146 L214 134 L186 134 Z" fill="#F6EDE0"/>
+                <path d="M186 136 L200 164 L190 166 L180 144 Z" fill="#E3D6C2"/>
+                <path d="M214 136 L200 164 L210 166 L220 144 Z" fill="#D8C9B2"/>
+                <path d="M200 162 L176 150 L178 174 Z" fill="#191013"/>
+                <path d="M200 162 L224 150 L222 174 Z" fill="#0E090B"/>
+                <path d="M200 162 L176 150 L178 174 Z" fill="#FF7A88" opacity=".16"/>
+                <path d="M200 155 L190 159 L200 169 L210 159 Z" fill="url(#dGoldTrim)"/>
+                <path d="M200 158 L196 161 L200 165 L204 161 Z" fill="#FFF3D2" opacity=".8"/>
+
+                <!-- ══ vest details ══ -->
+                <circle cx="200" cy="216" r="2.6" fill="url(#dGoldTrim)"/>
+                <circle cx="200" cy="242" r="2.6" fill="url(#dGoldTrim)"/>
+                <circle cx="200" cy="268" r="2.6" fill="url(#dGoldTrim)"/>
+                <path d="M214 216 q20 10 16 28" fill="none" stroke="url(#dGoldTrim)" stroke-width="1.3" opacity=".7"/>
+                <rect x="230" y="232" width="28" height="10" rx="2.5" fill="#0F0C09" stroke="url(#dGoldTrim)" stroke-opacity=".75" stroke-width="1"/>
+                <text x="244" y="239.4" text-anchor="middle" font-family="Georgia,serif" font-size="5.6" fill="#E8C783" letter-spacing=".7">ENP</text>
+
+                <!-- ══ neck ══ -->
+                <path d="M187 108 h26 v30 q-13 12 -26 0 Z" fill="url(#dSkin)"/>
+                <path d="M187 122 q13 11 26 0 v8 q-13 11 -26 0 Z" fill="#B27E5C" opacity=".4"/>
+
+                <!-- ══ head ══ -->
+                <g class="dealer-head">
+                  <!-- hair silhouette behind -->
+                  <path d="M200 38 c27 0 39 19 39 45 c0 12 -2 23 -6 31 l-9 -3 c4 -8 5 -17 5 -28 c0 -22 -11 -33 -29 -33 c-18 0 -29 11 -29 33 c0 11 1 20 5 28 l-9 3 c-4 -8 -6 -19 -6 -31 c0 -26 12 -45 39 -45 Z" fill="url(#dHair)"/>
+                  <!-- face -->
+                  <path d="M200 50 c18 0 28 14 28 36 c0 16 -3 30 -9 39 c-6 9 -12 13 -19 13 c-7 0 -13 -4 -19 -13 c-6 -9 -9 -23 -9 -39 c0 -22 10 -36 28 -36 Z" fill="url(#dSkin)"/>
+                  <!-- jaw + neck shadow -->
+                  <path d="M185 118 q15 10 30 0 q-4 12 -15 12 q-11 0 -15 -12 Z" fill="#C79372" opacity=".28"/>
+                  <!-- ears -->
+                  <ellipse cx="171" cy="88" rx="5" ry="8" fill="url(#dSkin)"/>
+                  <ellipse cx="229" cy="88" rx="5" ry="8" fill="url(#dSkin)"/>
+                  <circle cx="171" cy="100" r="2.3" fill="url(#dGoldTrim)"/>
+                  <circle cx="229" cy="100" r="2.3" fill="url(#dGoldTrim)"/>
+                  <!-- blush -->
+                  <ellipse cx="182" cy="99" rx="8" ry="5.5" fill="url(#dCheek)"/>
+                  <ellipse cx="218" cy="99" rx="8" ry="5.5" fill="url(#dCheek)"/>
+                  <!-- fringe sweep -->
+                  <path d="M171 82 c0 -25 13 -39 29 -39 c16 0 29 14 29 39 c-6 -17 -15 -25 -27 -25 c-6 0 -11 4 -15 10 c-4 6 -9 11 -16 15 Z" fill="url(#dHair)"/>
+                  <path d="M178 64 q15 -12 30 -2" stroke="#6B4842" stroke-width="1" fill="none" opacity=".55"/>
+                  <path d="M173 86 c-3 12 -3 24 -1 34 l6 -1 c-2 -10 -2 -21 0 -32 Z" fill="url(#dHairFront)"/>
+                  <path d="M227 86 c3 12 3 24 1 34 l-6 -1 c2 -10 2 -21 0 -32 Z" fill="url(#dHairFront)"/>
+                  <!-- brows -->
+                  <path d="M183 83 q7 -4 13 -1" stroke="#3A2520" stroke-width="2" fill="none" stroke-linecap="round"/>
+                  <path d="M204 82 q6 -3 13 1" stroke="#3A2520" stroke-width="2" fill="none" stroke-linecap="round"/>
+                  <!-- eyes -->
+                  <g class="dealer-eyes">
+                    <path d="M182 90 q8 -6 15 0 q-8 5 -15 0 Z" fill="#FDF7EC"/>
+                    <path d="M203 90 q8 -6 15 0 q-8 5 -15 0 Z" fill="#FDF7EC"/>
+                    <circle cx="189.5" cy="90" r="2.7" fill="#2C1C18"/>
+                    <circle cx="210.5" cy="90" r="2.7" fill="#2C1C18"/>
+                    <circle cx="190.4" cy="89.1" r=".95" fill="#FFFCF3"/>
+                    <circle cx="211.4" cy="89.1" r=".95" fill="#FFFCF3"/>
+                    <path d="M182 90 q8 -7 15 -1" stroke="#2A1A16" stroke-width="1.5" fill="none" stroke-linecap="round"/>
+                    <path d="M203 89 q8 -6 15 1" stroke="#2A1A16" stroke-width="1.5" fill="none" stroke-linecap="round"/>
+                  </g>
+                  <!-- nose + lips -->
+                  <path d="M200 93 q-2 7 1 10 q2 1 3 -1" stroke="#C08A64" stroke-width="1.3" fill="none" stroke-linecap="round"/>
+                  <path d="M193 112 q7 4 14 0 q-3 5 -7 5 q-4 0 -7 -5 Z" fill="#B94F5E"/>
+                  <path d="M193 112 q7 2 14 0" stroke="#8E3441" stroke-width=".8" fill="none" opacity=".75"/>
+                  <!-- rim light -->
+                  <ellipse cx="200" cy="78" rx="30" ry="38" fill="url(#dRim)"/>
+                </g>
+
+                <!-- ══ left arm ══ -->
+                <g class="dealer-arm arm-l">
+                  <path d="M152 168 C132 180 120 208 114 244 C110 264 108 278 108 290 L142 292 C142 276 144 258 148 238 C152 214 160 192 168 182 Z" fill="url(#dVest)"/>
+                  <path d="M152 168 C132 180 120 208 114 244" fill="none" stroke="#FFE7B4" stroke-opacity=".16" stroke-width="2.4"/>
+                  <path d="M106 286 L144 288 L143 301 L106 299 Z" fill="#0B0B0F" stroke="url(#dGoldTrim)" stroke-opacity=".3" stroke-width="1"/>
+                  <ellipse cx="124" cy="292" rx="18" ry="13" fill="url(#dGlove)"/>
+                  <path d="M112 290 q12 -5 24 0" stroke="#A9967E" stroke-width="1" fill="none" opacity=".55"/>
+                  <path d="M114 295 h20 M116 299 h16" stroke="#B5A48C" stroke-width=".8" fill="none" opacity=".45"/>
+                  <path d="M106 291 q-4 3 -3 6" stroke="#C9BBA8" stroke-width="1.4" fill="none" opacity=".7"/>
+                </g>
+                <!-- ══ right arm ══ -->
+                <g class="dealer-arm arm-r">
+                  <path d="M248 168 C268 180 280 208 286 244 C290 264 292 278 292 290 L258 292 C258 276 256 258 252 238 C248 214 240 192 232 182 Z" fill="url(#dVest)"/>
+                  <path d="M248 168 C268 180 280 208 286 244" fill="none" stroke="#FFE7B4" stroke-opacity=".1" stroke-width="2.4"/>
+                  <path d="M294 286 L256 288 L257 301 L294 299 Z" fill="#0B0B0F" stroke="url(#dGoldTrim)" stroke-opacity=".3" stroke-width="1"/>
+                  <ellipse cx="276" cy="292" rx="18" ry="13" fill="url(#dGlove)"/>
+                  <path d="M264 290 q12 -5 24 0" stroke="#A9967E" stroke-width="1" fill="none" opacity=".55"/>
+                  <path d="M264 295 h20 M266 299 h16" stroke="#B5A48C" stroke-width=".8" fill="none" opacity=".45"/>
+                  <path d="M294 291 q4 3 3 6" stroke="#C9BBA8" stroke-width="1.4" fill="none" opacity=".7"/>
+                </g>
+
+                <ellipse cx="200" cy="299" rx="126" ry="7" fill="#000" opacity=".4"/>
+              </g>
+            </svg>
+          </div>
+
+          <!-- the shoe -->
+          <button class="shoe" id="shoeEl" title="잔여 카드 (클릭하면 셔플)" aria-label="카드 슈 · 잔여 카드">
+            <span class="shoe-3d" aria-hidden="true">
+              <span class="sh-base"></span>
+              <span class="sh-deck"></span>
+              <span class="sh-mouth"></span>
+              <span class="sh-top"></span>
+            </span>
+            <span class="shoe-meta"><span class="shoe-label">SHOE</span><span class="shoe-count" id="shoeCount">416</span></span>
+          </button>
+
+          <!-- hands -->
+          <div class="hands">
+            <section class="hand hand-player" aria-label="플레이어">
+              <div class="hand-head">
+                <span class="total-badge" id="playerTotal"><i>—</i></span>
+                <span class="hand-titles">
+                  <span class="hand-name">PLAYER</span>
+                  <span class="hand-ko">플레이어 · 1:1</span>
+                </span>
+              </div>
+              <div class="cards" id="playerCards"></div>
+            </section>
+
+            <div class="table-crest" aria-hidden="true">
+              <span class="crest-line"></span>
+              <span class="crest-mark">E</span>
+              <span class="crest-word">ENP</span>
+              <span class="crest-line"></span>
+            </div>
+
+            <section class="hand hand-banker" aria-label="뱅커">
+              <div class="hand-head">
+                <span class="hand-titles">
+                  <span class="hand-name">BANKER</span>
+                  <span class="hand-ko">뱅커 · 0.95:1</span>
+                </span>
+                <span class="total-badge" id="bankerTotal"><i>—</i></span>
+              </div>
+              <div class="cards" id="bankerCards"></div>
+            </section>
+          </div>
+
+          <!-- betting mat -->
+          <div class="mat" role="group" aria-label="베팅 테이블">
+            <div class="mat-status" aria-hidden="true"><span id="feltStatus">PLACE YOUR BETS</span></div>
+            <div class="mat-shell">
+              <span class="mat-marker mk-l" aria-hidden="true"></span>
+              <div class="mat-zones">
+                <button class="mat-zone mz-pp" data-spot="playerPair" aria-label="플레이어 페어 베팅">
+                  <span class="mz-name">P 페어</span>
+                  <span class="mz-pay" id="payPP">11:1</span>
+                  <span class="bet-chip" data-betchip="playerPair" aria-hidden="true"></span>
+                </button>
+
+                <button class="mat-zone mz-player" data-spot="player" aria-label="플레이어에 베팅">
+                  <span class="mz-name">PLAYER</span>
+                  <span class="mz-pay" id="payPlayer">1:1</span>
+                  <span class="bet-chip" data-betchip="player" aria-hidden="true"></span>
+                </button>
+
+                <button class="mat-zone mz-tie" data-spot="tie" aria-label="타이 베팅">
+                  <span class="mz-name">TIE</span>
+                  <span class="mz-pay" id="payTie">8:1</span>
+                  <span class="bet-chip" data-betchip="tie" aria-hidden="true"></span>
+                </button>
+
+                <button class="mat-zone mz-banker" data-spot="banker" aria-label="뱅커에 베팅">
+                  <span class="mz-name">BANKER</span>
+                  <span class="mz-pay" id="payBanker">0.95:1</span>
+                  <span class="bet-chip" data-betchip="banker" aria-hidden="true"></span>
+                </button>
+
+                <button class="mat-zone mz-bp" data-spot="bankerPair" aria-label="뱅커 페어 베팅">
+                  <span class="mz-name">B 페어</span>
+                  <span class="mz-pay" id="payBP">11:1</span>
+                  <span class="bet-chip" data-betchip="bankerPair" aria-hidden="true"></span>
+                </button>
+              </div>
+              <span class="mat-marker mk-r" aria-hidden="true"></span>
+            </div>
+          </div>
+
+          <div class="squeeze-hint" id="squeezeHint">
+            <span>🫳 카드를 탭해 쪼개세요</span>
+            <button id="revealAllBtn" class="mini-btn">전체 오픈</button>
+          </div>
+
+          <div class="lightning-veil" id="lightningVeil" aria-hidden="true">
+            <div class="lv-flash"></div>
+          </div>
+          <div class="rail-front" aria-hidden="true"></div>
+          <div class="rail-edge" aria-hidden="true"></div>
+        </div>
+      </div>
+
+      <!-- ─── BOTTOM OVERLAY BAR ─── -->
+      <div class="bottom-bar">
+
+        <div class="bonus-strip" id="bonusStrip">
+          <div class="bs-head">
+            <div class="bs-title">
+              <span class="bs-icon" id="bonusIcon">🌸</span>
+              <span id="bonusTitle">벚꽃 보너스 라운드</span>
+            </div>
+            <span class="bs-note" id="bonusNote">딜 전 공개</span>
+          </div>
+          <div class="bs-cards" id="bonusCards">
+            <span class="bs-empty" id="bonusEmpty">딜을 누르면 1~5장의 보너스 카드가 공개됩니다</span>
+          </div>
+          <div class="bs-sub">
+            <span class="bs-chip" id="bonusTag">1–5 CARDS · ×2 ~ ×8</span>
+            <span class="bs-hint">승리 핸드에 곱연산</span>
+          </div>
+        </div>
+
+        <aside class="panel bet-panel" aria-label="베팅 패널">
+          <div class="bet-controls">
+            <div class="amount-row">
+              <button class="op-btn" id="halfBtn" aria-label="절반">½</button>
+              <div class="amount-display"><span class="won">₩</span><span id="chipAmount">10,000</span></div>
+              <button class="op-btn" id="doubleBtn" aria-label="두 배">2×</button>
+            </div>
+            <div class="chips" id="chipRow" role="group" aria-label="칩 선택">
+              <button class="chip" data-chip="1000" aria-label="1천"><i>1천</i></button>
+              <button class="chip" data-chip="5000" aria-label="5천"><i>5천</i></button>
+              <button class="chip is-active" data-chip="10000" aria-label="1만"><i>1만</i></button>
+              <button class="chip" data-chip="50000" aria-label="5만"><i>5만</i></button>
+              <button class="chip" data-chip="100000" aria-label="10만"><i>10만</i></button>
+              <button class="chip" data-chip="500000" aria-label="50만"><i>50만</i></button>
+            </div>
+          </div>
+
+          <div class="bet-summary">
+            <div class="sum-row"><span>총 베팅액</span><b id="totalStake">₩0</b></div>
+            <div class="sum-row" id="feeRow"><span id="feeLabel">수수료</span><b id="totalFee">₩0</b></div>
+            <div class="sum-row grand"><span>총 차감액</span><b id="totalDebit">₩0</b></div>
+          </div>
+
+          <div class="bet-actions">
+            <button class="btn ghost" id="rebetBtn">재베팅</button>
+            <button class="btn ghost" id="undoBtn">되돌리기</button>
+            <button class="btn ghost" id="clearBtn">초기화</button>
+          </div>
+
+          <button class="deal-btn" id="dealBtn">
+            <span class="deal-label">DEAL</span>
+            <span class="deal-amt" id="dealAmount">₩0</span>
+          </button>
+        </aside>
+
+        <aside class="panel side-panel" aria-label="통계 및 출목표">
+          <div class="road-head">
+            <div class="road-tabs" id="roadTabs">
+              <button class="road-tab is-active" data-road="bead">원판</button>
+              <button class="road-tab" data-road="big">빅로드</button>
+            </div>
+            <span class="road-count" id="roadCount">0</span>
+            <button class="road-close" id="roadClose" aria-label="출목표 닫기">✕</button>
+          </div>
+
+          <div class="stats">
+            <div class="stat"><span class="k">핸드</span><b id="statHands">0</b></div>
+            <div class="stat p"><span class="k">P</span><b id="statP">0%</b></div>
+            <div class="stat b"><span class="k">B</span><b id="statB">0%</b></div>
+            <div class="stat t"><span class="k">T</span><b id="statT">0%</b></div>
+          </div>
+
+          <div class="pair-stats">
+            <span><i class="dot pp"></i>P 페어 <b id="pPairs">0</b></span>
+            <span><i class="dot bp"></i>B 페어 <b id="bPairs">0</b></span>
+            <span class="net">순손익 <b id="statNet">₩0</b></span>
+          </div>
+
+          <div class="road-wrap">
+            <div class="bead" id="bead"></div>
+            <div class="bigroad" id="bigroad" hidden></div>
+          </div>
+
+          <div class="history">
+            <h3>최근 기록</h3>
+            <div class="history-list" id="historyList"><span class="hist-empty">아직 기록이 없습니다</span></div>
+          </div>
+        </aside>
+
+        <span class="bar-note" id="tableNote">8덱 슈 · 14장 이하 자동 셔플</span>
+      </div>
+
+      <div class="road-scrim" id="roadScrim" aria-hidden="true"></div>
+
+      <!-- RESULT -->
+      <div class="result" id="result" role="status" aria-live="polite">
+        <div class="result-glow"></div>
+        <div class="result-kicker" id="resultKicker">핸드 결과</div>
+        <div class="result-title" id="resultTitle">뱅커 승리</div>
+        <div class="result-mult" id="resultMult">🌸 ×8 BLOSSOM WIN!</div>
+        <div class="result-amount" id="resultAmount">+₩20,000</div>
+        <div class="result-rows" id="resultRows"></div>
+        <button class="result-close" id="resultClose">계속</button>
+      </div>
+    </section>
+
+    <footer class="vm-footer">
+      <span class="vm-dot"></span>
+      가상 머니 · 모의 바카라 — 실제 화폐를 사용하지 않는 시뮬레이션입니다.
+    </footer>
+  </main>
+</div>
+
+<div class="fx-layer" id="fxLayer" aria-hidden="true"></div>
+
+<!-- ══════════ MODE TRANSITION VEIL ══════════ -->
+<div class="mode-veil" id="modeVeil" aria-hidden="true">
+  <div class="mv-inner">
+    <span class="mv-icon" id="mvIcon">🌸</span>
+    <span class="mv-name" id="mvName">벚꽃 바카라</span>
+    <span class="mv-sub" id="mvSub">TABLE OPEN</span>
+  </div>
+</div>
+
+<!-- ══════════ MODAL ══════════ -->
+<div class="modal-back" id="modalBack" hidden>
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
+    <div class="modal-head">
+      <h2 id="modalTitle">설정 및 규칙</h2>
+      <button class="modal-x" id="modalClose" aria-label="닫기">✕</button>
+    </div>
+
+    <div class="modal-body">
+      <section class="m-sec">
+        <h3>설정</h3>
+        <label class="opt"><span>사운드</span><input type="checkbox" id="optSound" checked><i class="sw"></i></label>
+        <label class="opt"><span>쪼기 모드 (Squeeze)</span><input type="checkbox" id="optSqueeze"><i class="sw"></i></label>
+        <label class="opt"><span>노 커미션 (뱅커 6 = 0.5:1)</span><input type="checkbox" id="optNoComm"><i class="sw"></i></label>
+        <label class="opt" id="autoRebetRow"><span>스피드 자동 재베팅</span><input type="checkbox" id="optAutoRebet"><i class="sw"></i></label>
+      </section>
+
+      <section class="m-sec">
+        <h3>가상 머니</h3>
+        <div class="m-money">
+          <div><span>현재 잔액</span><b id="modalBalance">₩1,000,000</b></div>
+          <div class="m-money-actions">
+            <button class="btn ghost sm" id="modalRefill">+₩1,000,000 충전</button>
+            <button class="btn danger sm" id="modalReset">잔액 초기화</button>
+          </div>
+        </div>
+        <p class="m-note">모든 금액은 가상 머니입니다. 충전은 언제든 무료이며 실제 결제가 발생하지 않습니다.</p>
+      </section>
+
+      <section class="m-sec">
+        <h3>테이블 규칙</h3>
+        <div class="rule" data-rule="speed">
+          <b>🚀 스피드 바카라</b>
+          <p>수수료 없는 클래식 정산에 초고속 딜링(약 0.35초)을 적용한 테이블입니다. 쪼기 없이 즉시 오픈되며 연속 베팅에 적합합니다.</p>
+          <ul><li>플레이어 1:1 · 뱅커 0.95:1 · 타이 8:1 · 페어 11:1</li><li>보너스 카드 없음 · 수수료 없음</li></ul>
+        </div>
+        <div class="rule" data-rule="sakura">
+          <b>🌸 벚꽃 바카라</b>
+          <p>매 라운드 1~5장의 벚꽃 카드(2x · 3x · 4x · 5x · 8x)가 피어납니다. 승리한 핸드(또는 페어)에 벚꽃 카드가 포함되면 배당이 배수만큼 곱해지고, 여러 장이면 곱연산으로 중첩됩니다. 추가 수수료는 없습니다.</p>
+          <ul><li>플레이어 1:1 · 뱅커 0.95:1 · 타이 8:1 · 페어 11:1</li><li>벚꽃 카드가 없는 핸드는 기본 배당으로 정산</li></ul>
+        </div>
+        <div class="rule" data-rule="snow">
+          <b>❄️ 눈꽃 바카라</b>
+          <p>매 라운드 1~5장의 눈꽃 크리스탈(2x · 3x · 4x · 5x · 8x)이 내립니다. 승리한 핸드(또는 페어)에 눈꽃 카드가 포함되면 배당이 배수만큼 곱해지고, 여러 장이면 곱연산으로 중첩됩니다. 추가 수수료는 없습니다.</p>
+          <ul><li>플레이어 1:1 · 뱅커 0.95:1 · 타이 8:1 · 페어 11:1</li><li>눈꽃 카드가 없는 핸들은 기본 배당으로 정산</li></ul>
+        </div>
+        <div class="rule">
+          <b>🎯 계정</b>
+          <p>아이디와 PIN으로 가상 머니 계정을 만들 수 있고, 게스트로도 바로 플레이할 수 있습니다. 계정·잔액·기록은 이 기기의 브라우저에만 저장됩니다. 충전은 언제든 무료입니다.</p>
+        </div>
+      </section>
+
+      <section class="m-sec">
+        <h3>푼토 방코 규칙</h3>
+        <ul class="m-list">
+          <li>8덱 416장, 피셔-예이츠 셔플. 14장 이하가 되면 자동 셔플.</li>
+          <li>내추럴 8·9는 양쪽 모두 스탠드.</li>
+          <li>플레이어 0–5 드로우, 6–7 스탠드.</li>
+          <li>뱅커는 플레이어 서드카드에 따라 아래 표대로 드로우합니다.</li>
+        </ul>
+        <table class="m-table">
+          <thead><tr><th>뱅커</th><th>드로우 조건</th></tr></thead>
+          <tbody>
+            <tr><td>0–2</td><td>항상</td></tr>
+            <tr><td>3</td><td>P3 ≠ 8</td></tr>
+            <tr><td>4</td><td>P3 2–7</td></tr>
+            <tr><td>5</td><td>P3 4–7</td></tr>
+            <tr><td>6</td><td>P3 6–7</td></tr>
+            <tr><td>7</td><td>스탠드</td></tr>
+          </tbody>
+        </table>
+        <p class="m-note">플레이어가 스탠드하면 뱅커는 0–5에서 드로우, 6–7은 스탠드합니다.</p>
+      </section>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+<!-- ══════════ BIG WIN CELEBRATION ══════════ -->
+<div class="celebrate" id="celebrate" aria-hidden="true">
+  <div class="cel-flash"></div>
+  <div class="cel-rays"></div>
+  <div class="cel-ring"></div>
+  <div class="cel-sparks"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
+  <div class="cel-inner">
+    <div class="cel-kicker" id="celKicker">BONUS WIN</div>
+    <div class="cel-mult" id="celMult">⚡ ×8</div>
+    <div class="cel-amount" id="celAmount">+₩200,000</div>
+    <div class="cel-note">가상 머니 · VIRTUAL WIN</div>
+  </div>
+</div>
+
+<!-- ══════════ AUTH MODAL ══════════ -->
+<div class="modal-back" id="authBack" hidden>
+  <div class="auth-panel" role="dialog" aria-modal="true" aria-labelledby="authTitle">
+    <button class="modal-x auth-x" id="authClose" aria-label="닫기">✕</button>
+    <div class="auth-brand">
+      <span class="auth-bolt">♠</span>
+      <h2 id="authTitle">ENP BACCARAT</h2>
+      <p>가상 머니 데모 계정</p>
+    </div>
+    <div class="auth-tabs" id="authTabs">
+      <button data-auth="login" class="is-active">로그인</button>
+      <button data-auth="signup">회원가입</button>
+    </div>
+    <form id="authForm" autocomplete="off" novalidate>
+      <label class="fld"><span>아이디</span><input id="authId" maxlength="14" placeholder="3~14자 영문·숫자" autocapitalize="none" spellcheck="false"></label>
+      <label class="fld" id="nickFld"><span>닉네임 <i>선택</i></span><input id="authNick" maxlength="12" placeholder="표시 이름"></label>
+      <label class="fld"><span>PIN <i>4~6자리 숫자</i></span><input id="authPin" type="password" inputmode="numeric" maxlength="6" placeholder="••••"></label>
+      <label class="fld" id="pin2Fld"><span>PIN 확인</span><input id="authPin2" type="password" inputmode="numeric" maxlength="6" placeholder="••••"></label>
+      <div class="auth-msg" id="authMsg"></div>
+      <button class="auth-submit" id="authSubmit" type="submit">로그인</button>
+    </form>
+    <div class="auth-profile" id="authProfile" hidden>
+      <div class="ap-avatar" id="apAvatar">E</div>
+      <div class="ap-name" id="apName">enp</div>
+      <div class="ap-role">가상 머니 데모 계정</div>
+      <div class="ap-bal"><span>보유 가상 머니</span><b id="apBalance">₩1,000,000</b></div>
+      <button class="auth-submit" id="apLogout" type="button">로그아웃</button>
+      <button class="auth-link" id="apSwitch" type="button">다른 계정으로 로그인</button>
+    </div>
+    <div class="auth-foot">
+      <button id="guestBtn" type="button">게스트로 계속하기</button>
+      <p>모든 금액은 가상 머니입니다 · 실제 결제·현금 없음</p>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════ HIDDEN ADMIN PIN ══════════ -->
+<div class="modal-back pin-back" id="pinBack" hidden>
+  <div class="pin-panel" role="dialog" aria-modal="true" aria-label="관리자 인증">
+    <div class="pin-head"><span>SECURE ACCESS</span><button id="pinClose" aria-label="닫기">✕</button></div>
+    <div class="pin-dots" id="pinDots"><i></i><i></i><i></i><i></i></div>
+    <div class="pin-msg" id="pinMsg">PIN을 입력하세요</div>
+    <div class="keypad" id="keypad">
+      <button data-key="1">1</button><button data-key="2">2</button><button data-key="3">3</button>
+      <button data-key="4">4</button><button data-key="5">5</button><button data-key="6">6</button>
+      <button data-key="7">7</button><button data-key="8">8</button><button data-key="9">9</button>
+      <button data-key="clear" class="kp-soft">C</button><button data-key="0">0</button><button data-key="back" class="kp-soft">⌫</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════ ADMIN PANEL ══════════ -->
+<div class="modal-back" id="adminBack" hidden>
+  <div class="admin-panel" role="dialog" aria-modal="true" aria-label="관리자 패널">
+    <div class="admin-head">
+      <div class="admin-title"><span class="admin-badge">ADMIN</span><h2>회원 · 가상 머니 관리</h2></div>
+      <button class="modal-x" id="adminClose" aria-label="닫기">✕</button>
+    </div>
+    <div class="admin-body">
+      <div class="adm-toolbar">
+        <label class="adm-amount"><span>조정 금액</span><input id="admAmount" inputmode="numeric" value="100000"></label>
+        <div class="adm-presets">
+          <button data-preset="100000">+10만</button>
+          <button data-preset="1000000">+100만</button>
+          <button data-preset="-100000">−10만</button>
+          <button data-preset="reset">초기화</button>
+        </div>
+      </div>
+      <div class="adm-users" id="admUsers"></div>
+
+      <div class="adm-sync">
+        <h3>GitHub 동기화 <span>선택</span></h3>
+        <p>회원 목록과 잔액을 비공개 리포지토리에 저장해 다른 기기와 맞춥니다. PAT는 이 기기에만 저장됩니다.</p>
+        <div class="sync-grid">
+          <input id="ghRepo" placeholder="owner/repo" autocapitalize="none" spellcheck="false">
+          <input id="ghPat" type="password" placeholder="ghp_… (repo 권한)" autocomplete="off">
+        </div>
+        <div class="sync-actions">
+          <button id="ghTest" class="btn ghost sm">연결 테스트</button>
+          <button id="ghPush" class="btn ghost sm">올리기</button>
+          <button id="ghPull" class="btn ghost sm">불러오기</button>
+        </div>
+        <div class="sync-status" id="ghStatus">대기 중</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="js/engine.js"></script>
+<script src="js/audio.js"></script>
+<script src="js/fx.js"></script>
+<script src="js/app.js"></script>
+</body>
+</html>
