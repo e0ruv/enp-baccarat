@@ -1475,7 +1475,7 @@ body[data-mode="snow"] .bonus-rail { border-color: rgba(169, 220, 242, .32); }
 
 /* ═══════════════════ DESKTOP ═══════════════════ */
 @media (min-width: 900px) {
-  :root { --card-w: 58px; }
+  :root { --card-w: 54px; }
   .topbar { height: 58px; gap: 14px; padding: 0 18px; }
   .brand-mark { width: 34px; height: 34px; }
   .brand-text { display: flex; }
@@ -1535,7 +1535,7 @@ body[data-mode="snow"] .bonus-rail { border-color: rgba(169, 220, 242, .32); }
     left: -4%; right: -4%; top: 57%; bottom: -6%; height: auto;
     border-radius: 50% 50% 0 0 / 18% 18% 0 0;
   }
-  .hand { top: 36%; }
+  .hand { top: 30%; }
   .felt-label { top: 20%; font-size: 17px; }
   .score-badge { width: 54px; height: 54px; font-size: 28px; bottom: 12px; }
   .sb-p { left: 14px; }
@@ -1594,7 +1594,7 @@ body[data-mode="snow"] .bonus-rail { border-color: rgba(169, 220, 242, .32); }
   .roadboard { height: 138px; }
   .betting-mat { height: 164px; }
   .dealer { height: 84%; bottom: 22%; }
-  .hand { top: 36%; }
+  .hand { top: 30%; }
   .score-badge { width: 38px; height: 38px; font-size: 20px; }
   .round-clock { width: 32px; height: 32px; }
   .rc-num { font-size: 13px; }
