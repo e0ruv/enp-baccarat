@@ -9,9 +9,10 @@
   const MODES = E.MODES;
   const SYM = E.SUIT_SYMBOL;
 
-  const CHIPS = [1000, 5000, 10000, 50000, 100000, 500000];
-  const MAX_CHIP = 5000000;
-  const START_BALANCE = 1000000;
+  const CHIPS = [1000, 5000, 10000, 50000, 100000, 500000, 1000000, 5000000, 10000000, 100000000];
+  const MAX_CHIP = 100000000;
+  const TABLE_MAX_BET = 1000000000;   // 테이블 최대 베팅 한도 ₩10억
+  const START_BALANCE = 1000000000;   // 가상 머니 기본 지급 ₩10억
   const LS_KEY = 'enp_baccarat_v1';
 
   const $ = (s, r = document) => r.querySelector(s);
@@ -19,6 +20,17 @@
   const sleep = (ms) => new Promise((res) => setTimeout(res, ms));
   const won = (n) => '₩' + Math.round(n).toLocaleString('ko-KR');
   const wonSign = (n) => (n > 0 ? '+' : n < 0 ? '-' : '') + '₩' + Math.abs(Math.round(n)).toLocaleString('ko-KR');
+  /** 큰 금액은 억 단위로 줄여 표시 (상단 바·상태바) */
+  const compactNum = (n) => {
+    const v = Math.round(n);
+    const abs = Math.abs(v);
+    if (abs >= 100000000) {
+      const eok = v / 100000000;
+      const r = Math.round(eok * 10) / 10;
+      return (Number.isInteger(r) ? String(r) : r.toFixed(1)) + '억';
+    }
+    return v.toLocaleString('ko-KR');
+  };
   const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
   const signed = (n) => Math.round(n).toLocaleString('ko-KR');
   const chipLabel = (n) => {
@@ -138,7 +150,10 @@
     bonus: [],
     hand: null,
     phase: 'betting',
-    autoTimer: null
+    autoTimer: null,
+    shuffling: false,
+    autoDealing: false,
+    shoeNo: 1
   };
 
   let squeezeWait = null;
@@ -350,9 +365,17 @@
 
   /* ───────────── render: money & bets ───────────── */
   function renderBalance() {
-    el.balance.textContent = Math.round(S.balance).toLocaleString('ko-KR');
-    if (el.statusBalance) el.statusBalance.textContent = won(S.balance);
+    el.balance.textContent = compactNum(S.balance);
+    el.balance.classList.toggle('is-compact', S.balance >= 100000000);
+    if (el.statusBalance) el.statusBalance.textContent = '₩' + compactNum(S.balance);
     if (el.modalBalance) el.modalBalance.textContent = won(S.balance);
+  }
+
+  /** 금액에 해당하는 칩 톤 (가장 큰 액면 칩 색) */
+  function chipToneOf(amount) {
+    let tone = CHIPS[0];
+    for (const c of CHIPS) { if (amount >= c) tone = c; }
+    return 'tone-' + tone;
   }
 
   function renderBetState() {
@@ -376,8 +399,8 @@
       const chip = $(`.bet-chip[data-betchip="${spot}"]`);
       const amt = S.bets[spot];
       if (chip) {
-        chip.textContent = amt ? chipLabel(amt) : '';
-        chip.classList.toggle('on', amt > 0);
+        chip.className = 'bet-chip' + (amt > 0 ? ' on ' + chipToneOf(amt) : '');
+        chip.innerHTML = amt ? `<i>${chipLabel(amt)}</i>` : '';
       }
       const spotEl = $(`[data-spot="${spot}"]`);
       if (spotEl) spotEl.classList.toggle('has-bet', amt > 0);
@@ -396,11 +419,15 @@
 
   function renderStats() {
     const st = S.stats;
-    const n = st.hands || 0;
-    el.statHands.textContent = n;
-    el.statP.textContent = st.player || 0;
-    el.statB.textContent = st.banker || 0;
-    el.statT.textContent = st.tie || 0;
+    const hist = S.history || [];
+    // 출목표 통계는 현재 슈 기준 (Evolution 방식: #핸드 = P + B + T)
+    const sp = hist.filter((h) => h.winner === 'player').length;
+    const sb = hist.filter((h) => h.winner === 'banker').length;
+    const stt = hist.filter((h) => h.winner === 'tie').length;
+    el.statHands.textContent = hist.length;
+    el.statP.textContent = sp;
+    el.statB.textContent = sb;
+    el.statT.textContent = stt;
     if (el.pPairs) el.pPairs.textContent = st.playerPair || 0;
     if (el.bPairs) el.bPairs.textContent = st.bankerPair || 0;
     if (el.statNet) {
@@ -464,8 +491,8 @@
     if (el.payEither) el.payEither.textContent = p.eitherPair + ':1';
 
     if (el.statusLimit) {
-      const max = cfg.limit || 5000000;
-      el.statusLimit.textContent = max >= 10000 ? `₩1천–${max / 10000}만` : `₩1천–${max}`;
+      const max = cfg.limit || TABLE_MAX_BET;
+      el.statusLimit.textContent = `₩1천–${compactNum(max)}`;
     }
 
     $$('.mode-btn').forEach((b) => b.classList.toggle('is-active', b.dataset.mode === S.mode));
@@ -489,6 +516,7 @@
     window.FX && FX.setMode(mode);
     if (!options.instant) flashModeVeil(mode);
     renderAll();
+    startRoundClock(true);
     save();
   }
 
@@ -778,10 +806,18 @@
     }
   }
 
-  function waitAllUp(nodes) {
+  async function waitAllUp(nodes, timeoutMs) {
     if (!nodes.length) return Promise.resolve();
     if (nodes.every((n) => n.classList.contains('up'))) return Promise.resolve();
-    return new Promise((resolve) => { squeezeWait = { els: nodes, resolve }; });
+    return new Promise((resolve) => {
+      squeezeWait = { els: nodes, resolve };
+      if (timeoutMs) {
+        window.setTimeout(() => {
+          if (!squeezeWait || squeezeWait.els !== nodes) return;
+          nodes.forEach((n) => { if (!n.classList.contains('up')) revealCard(n); });
+        }, timeoutMs);
+      }
+    });
   }
 
   /* ───────────── betting ───────────── */
@@ -790,6 +826,10 @@
     if (S.phase !== 'betting') { toast('핸드 진행 중에는 베팅할 수 없습니다'); return false; }
     const amt = Math.max(0, Math.round(amount));
     if (!amt) return false;
+    if ((S.bets[spot] || 0) + amt > TABLE_MAX_BET) {
+      toast(`한 칸 최대 ${won(TABLE_MAX_BET)}까지 베팅할 수 있습니다`);
+      return false;
+    }
     const fee = feeFor(amt);
     if (amt + fee > S.balance) {
       toast('가상 머니가 부족합니다 · 충전을 눌러주세요');
@@ -981,12 +1021,17 @@
     return seq;
   }
 
-  async function deal() {
+  async function deal(opts) {
+    const auto = !!(opts && opts.auto);
     if (S.phase !== 'betting') return;
-    if (totalStake() <= 0) { toast('먼저 베팅하세요'); return; }
+    const stakeIn = totalStake();
+    if (!auto && stakeIn <= 0) { toast('먼저 베팅하세요'); return; }
 
     S.phase = 'dealing';
-    S.lastBets = Object.assign(emptyBets(), S.bets);
+    clockLeft = CLOCK_SECONDS;
+    clearInterval(clockTimer);
+    paintClock();
+    if (stakeIn > 0) S.lastBets = Object.assign(emptyBets(), S.bets);
     S.stack = [];
     S.bonus = [];
     S.hand = null;
@@ -1002,13 +1047,22 @@
     const fast = cfg.id === 'speed';
 
     if (S.shoe.needsShuffle()) {
+      S.shuffling = true;
       S.shoe.reshuffle();
       renderShoe();
       if (el.shuffleVeil) el.shuffleVeil.classList.add('on');
-      toast('슈 셔플 · 416장');
+      toast('새 슈 · 셔플 후 새 출목표로 시작합니다');
       window.Sound && Sound.card();
-      await sleep(fast ? 320 : 780);
+      await sleep(fast ? 340 : 950);
       if (el.shuffleVeil) el.shuffleVeil.classList.remove('on');
+      // 8덱 슈 종료 → 새 슈. 출목표는 새로 시작하고 누적 통계는 유지합니다.
+      S.history.length = 0;
+      S.shoeNo = (S.shoeNo || 1) + 1;
+      renderRoads();
+      renderStats();
+      renderHistory();
+      save();
+      S.shuffling = false;
     }
 
     // bonus round (blossom / snowflake)
@@ -1048,9 +1102,10 @@
 
     if (squeeze) {
       S.phase = 'reveal';
+      paintClock();
       el.squeezeHint.classList.add('on');
       updateTotals();
-      await waitAllUp(firstNodes);
+      await waitAllUp(firstNodes, SQUEEZE_TIMEOUT);
       el.squeezeHint.classList.remove('on');
     }
 
@@ -1080,8 +1135,9 @@
 
     if (squeeze && thirdNodes.length) {
       S.phase = 'reveal';
+      paintClock();
       el.squeezeHint.classList.add('on');
-      await waitAllUp(thirdNodes);
+      await waitAllUp(thirdNodes, SQUEEZE_TIMEOUT);
       el.squeezeHint.classList.remove('on');
     }
 
@@ -1257,12 +1313,13 @@
     }
     if (el.dealerView) el.dealerView.classList.remove('is-focus');
     renderMiniCards();
-    startRoundClock(true);
 
     const betSpots = Object.keys(S.bets).filter((k) => S.bets[k] > 0);
+    const hadBets = betSpots.length > 0;
     S.bets = emptyBets();
     S.stack = [];
     S.phase = 'betting';
+    startRoundClock(true);
     if (el.feltStatus) el.feltStatus.textContent = 'PLACE YOUR BETS';
 
     renderBalance();
@@ -1273,8 +1330,8 @@
     renderShoe();
     save();
 
-    // sound
-    if (window.Sound) {
+    // sound (관전만 한 라운드는 조용히)
+    if (window.Sound && hadBets) {
       if (settled.net > 0) {
         if (settled.bestMultiplier >= 4) Sound.bigWin();
         else Sound.win();
@@ -1285,9 +1342,14 @@
       }
     }
 
-    showResult(settled, result, betSpots);
+    if (hadBets) {
+      showResult(settled, result, betSpots);
+      celebrate(settled);
+    } else {
+      el.result.classList.remove('on');
+      clearTimeout(resultTimer);
+    }
     updateLiveMults();
-    celebrate(settled);
 
     // speed table auto rebet
     if (MODES[S.mode].id === 'speed' && S.settings.autoRebet) {
@@ -1351,43 +1413,55 @@
     // so the card can be mounted immediately and stay until dismissed.
     resultTimer = setTimeout(() => {
       el.result.classList.add('on');
-      resultTimer = setTimeout(() => el.result.classList.remove('on'), bigWin ? 9000 : 7000);
+      resultTimer = setTimeout(() => el.result.classList.remove('on'), bigWin ? 8000 : 5500);
     }, 0);
 
     if (settled.net > 0) pulseNode($('#balancePill'));
   }
 
-  /* ───────────── roads ───────────── */
+  /* ───────────── roads (Evolution 화이트 출목표) ───────────── */
   function renderRoads() {
     const hist = S.history;
     if (el.roadCount) el.roadCount.textContent = hist.length;
 
-    // ── 비드로드 (우측 세로 열)
+    // ── 비드로드 (우측 6행 · 원형 배지 · 빈 칸까지 격자)
     el.bead.innerHTML = '';
     const ROWS = 6;
     const beadHist = hist.slice(-24);
-    beadHist.forEach((h, i) => {
-      const d = document.createElement('div');
-      const cls = h.winner === 'player' ? 'p' : h.winner === 'banker' ? 'b' : 't';
-      d.className = 'bead-cell ' + cls;
-      d.style.gridColumn = String(Math.floor(i / ROWS) + 1);
-      d.style.gridRow = String((i % ROWS) + 1);
-      d.textContent = h.winner === 'player' ? 'P' : h.winner === 'banker' ? 'B' : 'T';
-      if (h.winner === 'tie') {
-        const s = document.createElement('span');
-        s.className = 'slash';
-        d.appendChild(s);
+    const beadCols = Math.max(3, Math.min(4, Math.ceil(beadHist.length / ROWS)));
+    el.bead.style.gridTemplateColumns = `repeat(${beadCols}, minmax(0, 1fr))`;
+    const beadFrag = document.createDocumentFragment();
+    for (let r = 1; r <= ROWS; r++) {
+      for (let c = 1; c <= beadCols; c++) {
+        const i = (c - 1) * ROWS + (r - 1);
+        const h = beadHist[i];
+        const d = document.createElement('div');
+        const cls = !h ? '' : h.winner === 'player' ? 'p' : h.winner === 'banker' ? 'b' : 't';
+        d.className = 'bead-cell' + (cls ? ' ' + cls : '');
+        d.style.gridColumn = String(c);
+        d.style.gridRow = String(r);
+        if (h) {
+          const badge = document.createElement('span');
+          badge.className = 'bch';
+          badge.textContent = h.winner === 'player' ? 'P' : h.winner === 'banker' ? 'B' : 'T';
+          d.appendChild(badge);
+          if (h.winner === 'tie') {
+            const s = document.createElement('span');
+            s.className = 'slash';
+            d.appendChild(s);
+          }
+          if (h.pp || h.bp) {
+            const dot = document.createElement('span');
+            dot.className = 'pd';
+            d.appendChild(dot);
+          }
+        }
+        beadFrag.appendChild(d);
       }
-      if (h.pp || h.bp) {
-        const dot = document.createElement('span');
-        dot.className = 'pd';
-        d.appendChild(dot);
-      }
-      el.bead.appendChild(d);
-    });
-    el.bead.style.gridTemplateColumns = `repeat(${Math.max(1, Math.min(4, Math.ceil(beadHist.length / ROWS)))}, minmax(0, 1fr))`;
+    }
+    el.bead.appendChild(beadFrag);
 
-    // ── 빅로드
+    // ── 빅로드 (6행 · 빈 셀까지 격자 전체)
     el.bigroad.innerHTML = '';
     const cells = [];
     let last = null;
@@ -1412,30 +1486,42 @@
     const boardW = el.bigroad.clientWidth || 320;
     const COLS = Math.max(9, Math.floor(boardW / 19));
     const off = Math.max(0, maxC - (COLS - 1));
-    visible.forEach((cell) => {
-      if (cell.c < off) return;
-      const d = document.createElement('div');
-      d.className = 'br-cell ' + (cell.winner === 'player' ? 'p' : 'b');
-      d.style.gridColumn = String(cell.c - off + 1);
-      d.style.gridRow = String(cell.r + 1);
-      const rim = document.createElement('span');
-      rim.className = 'rim';
-      rim.textContent = cell.winner === 'player' ? 'P' : 'B';
-      d.appendChild(rim);
-      if (cell.ties) {
-        const s = document.createElement('span');
-        s.className = 'slash';
-        s.style.opacity = String(Math.min(1, 0.45 + cell.ties * 0.3));
-        d.appendChild(s);
-      }
-      if (cell.pp || cell.bp) {
-        const dot = document.createElement('span');
-        dot.className = 'pd';
-        d.appendChild(dot);
-      }
-      el.bigroad.appendChild(d);
-    });
+    const marks = new Map();
+    for (const cell of visible) {
+      if (cell.c < off) continue;
+      marks.set((cell.c - off) + ':' + (cell.r + 1), cell);
+    }
     el.bigroad.style.gridTemplateColumns = `repeat(${COLS}, minmax(0, 1fr))`;
+
+    const frag = document.createDocumentFragment();
+    for (let r = 1; r <= 6; r++) {
+      for (let c = 1; c <= COLS; c++) {
+        const cell = marks.get((c - 1) + ':' + r);
+        const d = document.createElement('div');
+        d.className = 'br-cell' + (cell ? (cell.winner === 'player' ? ' p' : ' b') : '');
+        d.style.gridColumn = String(c);
+        d.style.gridRow = String(r);
+        if (cell) {
+          const rim = document.createElement('span');
+          rim.className = 'rim';
+          rim.textContent = cell.winner === 'player' ? 'P' : 'B';
+          d.appendChild(rim);
+          if (cell.ties) {
+            const s = document.createElement('span');
+            s.className = 'slash';
+            s.style.opacity = String(Math.min(1, 0.55 + cell.ties * 0.25));
+            d.appendChild(s);
+          }
+          if (cell.pp || cell.bp) {
+            const dot = document.createElement('span');
+            dot.className = 'pd';
+            d.appendChild(dot);
+          }
+        }
+        frag.appendChild(d);
+      }
+    }
+    el.bigroad.appendChild(frag);
 
     // ── 중국점 1·2·3군
     const derived = E.derivedRoads(hist);
@@ -1450,18 +1536,26 @@
     const boxW = box.clientWidth || 90;
     const COLS = Math.max(6, Math.floor(boxW / 8));
     box.style.gridTemplateColumns = `repeat(${COLS}, minmax(0, 1fr))`;
-    if (!marks || !marks.length) return;
-    const maxC = marks.reduce((m, k) => Math.max(m, k.c), 0);
+    const maxC = marks && marks.length ? marks.reduce((m, k) => Math.max(m, k.c), 0) : 0;
     const off = Math.max(0, maxC - (COLS - 1));
-    marks.forEach((k) => {
+    const put = new Map();
+    (marks || []).forEach((k) => {
       if (k.c < off) return;
-      const d = document.createElement('div');
-      d.className = 'mr-dot ' + k.kind;
-      d.style.gridColumn = String(k.c - off + 1);
-      d.style.gridRow = String(k.r + 1);
-      d.appendChild(document.createElement('i'));
-      box.appendChild(d);
+      put.set((k.c - off) + ':' + (k.r + 1), k);
     });
+    const frag = document.createDocumentFragment();
+    for (let r = 1; r <= 6; r++) {
+      for (let c = 1; c <= COLS; c++) {
+        const k = put.get((c - 1) + ':' + r);
+        const d = document.createElement('div');
+        d.className = 'mr-cell' + (k ? ' mr-dot ' + k.kind : '');
+        d.style.gridColumn = String(c);
+        d.style.gridRow = String(r);
+        if (k) d.appendChild(document.createElement('i'));
+        frag.appendChild(d);
+      }
+    }
+    box.appendChild(frag);
   }
 
   function renderHistory() {
@@ -1525,12 +1619,14 @@
     el.optSqueeze.checked = S.settings.squeeze;
     el.optNoComm.checked = S.settings.noCommission;
     el.optAutoRebet.checked = S.settings.autoRebet;
+    paintClock();
     if (window.Sound) Sound.click();
   }
 
   function closeModal() {
     el.modalBack.hidden = true;
     document.body.classList.remove('is-locked');
+    paintClock();
   }
 
   /* ───────────── splash ───────────── */
@@ -1563,30 +1659,50 @@
     window.setTimeout(finish, 2100);
   }
 
-  /* ───────────── round clock (표시용 · 자동 딜 없음) ───────────── */
+  /* ───────────── round clock · 라이브 테이블 자동 진행 ───────────── */
   const CLOCK_SECONDS = 20;
+  const SQUEEZE_TIMEOUT = 20000;
   let clockLeft = CLOCK_SECONDS;
   let clockTimer = 0;
 
+  /** 모달·셔플·백그라운드 탭 등에서는 자동 진행을 멈춥니다. */
+  function tablePaused() {
+    if (document.hidden) return true;
+    if (S.shuffling) return true;
+    return [el.modalBack, el.authBack, el.pinBack, el.adminBack].some((b) => b && !b.hidden);
+  }
+
   function paintClock() {
     if (!el.roundClock) return;
-    const k = Math.max(0, Math.min(1, clockLeft / CLOCK_SECONDS));
+    const k = clamp(clockLeft / CLOCK_SECONDS, 0, 1);
     el.roundClock.style.setProperty('--deg', (k * 360).toFixed(1) + 'deg');
-    if (el.clockNum) el.clockNum.textContent = String(Math.max(0, clockLeft));
-    el.roundClock.classList.toggle('is-urgent', clockLeft <= 5);
-    el.roundClock.classList.toggle('is-idle', S.phase !== 'betting');
+    const betting = S.phase === 'betting';
+    if (el.clockNum) el.clockNum.textContent = betting ? String(Math.max(0, clockLeft)) : '·';
+    el.roundClock.classList.toggle('is-urgent', betting && clockLeft <= 5);
+    el.roundClock.classList.toggle('is-idle', !betting || tablePaused());
   }
 
   function startRoundClock(reset) {
     if (reset) clockLeft = CLOCK_SECONDS;
     clearInterval(clockTimer);
     paintClock();
-    clockTimer = setInterval(() => {
-      if (S.phase !== 'betting') { paintClock(); return; }
-      clockLeft -= 1;
-      if (clockLeft < 0) clockLeft = CLOCK_SECONDS;
-      paintClock();
-    }, 1000);
+    clockTimer = setInterval(tickClock, 1000);
+  }
+
+  function tickClock() {
+    if (S.phase !== 'betting') { paintClock(); return; }
+    if (tablePaused()) { paintClock(); return; }
+    if (clockLeft <= 0) { autoDeal(); return; }
+    clockLeft -= 1;
+    paintClock();
+    if (clockLeft <= 0) autoDeal();
+  }
+
+  /** 카운트다운 0 → 베팅 마감 · 카드 딜링 · 정산 · 다음 라운드 (관전만 해도 반복) */
+  function autoDeal() {
+    if (S.phase !== 'betting' || tablePaused() || S.autoDealing) return;
+    S.autoDealing = true;
+    Promise.resolve(deal({ auto: true })).finally(() => { S.autoDealing = false; });
   }
 
   /* ───────────── betting mat: tap · drag · long-press move ───────────── */
@@ -1742,7 +1858,7 @@
 
     el.refillBtn.addEventListener('click', () => {
       refill(START_BALANCE);
-      toast('가상 머니 +₩1,000,000 충전');
+      toast('가상 머니 +' + won(START_BALANCE) + ' 충전');
     });
 
     if (el.reshuffleBtn) {
@@ -1812,7 +1928,7 @@
     el.modalRefill.addEventListener('click', () => {
       refill(START_BALANCE);
       el.modalBalance.textContent = won(S.balance);
-      toast('가상 머니 +₩1,000,000');
+      toast('가상 머니 +' + won(START_BALANCE));
     });
 
     el.modalReset.addEventListener('click', () => {
@@ -1843,6 +1959,7 @@
       renderAll();
       renderSoundBtn();
       el.modalBalance.textContent = won(S.balance);
+      startRoundClock(true);
       save();
       toast('가상 머니와 기록을 초기화했습니다');
     });
@@ -2022,6 +2139,7 @@
     renderBonusEmpty();
     renderAll();
     renderAccount();
+    startRoundClock(true);
   }
 
   function setAuthMsg(msg, ok) {

@@ -88,7 +88,7 @@
       </button>
       <div class="balance-pill" id="balancePill" title="가상 머니 잔액">
         <span class="bp-cur">₩</span>
-        <span class="bp-amount" id="balance">1,000,000</span>
+        <span class="bp-amount" id="balance">10억</span>
         <button class="bp-refill" id="refillBtn" title="가상 머니 충전">충전</button>
       </div>
       <button class="ico-btn" id="soundBtn" aria-label="사운드 켜기/끄기" title="사운드"></button>
@@ -120,146 +120,14 @@
       <div class="shoe-meter" aria-hidden="true"><i id="shoeBar"></i></div>
 
       <div class="dealer-slot"><!-- dealer -->
-          <div class="dealer" id="dealer" aria-hidden="true">
-            <div class="dealer-halo"></div>
-            <svg class="dealer-svg" viewBox="0 0 400 300" preserveAspectRatio="xMidYMax meet">
-              <defs>
-                <linearGradient id="dSkin" x1=".25" y1="0" x2=".8" y2="1">
-                  <stop offset="0" stop-color="#FBE4CE"/><stop offset=".45" stop-color="#EECBAE"/><stop offset=".85" stop-color="#D3A582"/><stop offset="1" stop-color="#BE8C6A"/>
-                </linearGradient>
-                <linearGradient id="dVest" x1=".15" y1="0" x2=".9" y2="1">
-                  <stop offset="0" stop-color="#2C2C34"/><stop offset=".38" stop-color="#101014"/><stop offset=".75" stop-color="#08080B"/><stop offset="1" stop-color="#1A1218"/>
-                </linearGradient>
-                <linearGradient id="dVestLight" x1=".2" y1="0" x2=".8" y2="1">
-                  <stop offset="0" stop-color="#3A3A44"/><stop offset=".6" stop-color="#191920"/><stop offset="1" stop-color="#0D0D12"/>
-                </linearGradient>
-                <linearGradient id="dShirt" x1=".1" y1="0" x2=".9" y2="1">
-                  <stop offset="0" stop-color="#CE3149"/><stop offset=".42" stop-color="#94152B"/><stop offset=".8" stop-color="#6A0E1E"/><stop offset="1" stop-color="#4C0915"/>
-                </linearGradient>
-                <linearGradient id="dGoldTrim" x1="0" y1="0" x2="1" y2="1">
-                  <stop offset="0" stop-color="#FFF6DA"/><stop offset=".4" stop-color="#E8BE6C"/><stop offset=".75" stop-color="#B98C3A"/><stop offset="1" stop-color="#8A6524"/>
-                </linearGradient>
-                <linearGradient id="dHair" x1=".2" y1="0" x2=".75" y2="1">
-                  <stop offset="0" stop-color="#4B2F30"/><stop offset=".35" stop-color="#2A191B"/><stop offset="1" stop-color="#0D0708"/>
-                </linearGradient>
-                <linearGradient id="dHairFront" x1=".3" y1="0" x2=".8" y2="1">
-                  <stop offset="0" stop-color="#3B2426"/><stop offset="1" stop-color="#120A0B"/>
-                </linearGradient>
-                <radialGradient id="dRim" cx=".28" cy=".18" r=".78">
-                  <stop offset="0" stop-color="#FFE9BC" stop-opacity=".55"/><stop offset=".55" stop-color="#FFE9BC" stop-opacity=".12"/><stop offset="1" stop-color="#FFE9BC" stop-opacity="0"/>
-                </radialGradient>
-                <radialGradient id="dCheek" cx=".5" cy=".5" r=".5">
-                  <stop offset="0" stop-color="#E28E8A" stop-opacity=".34"/><stop offset="1" stop-color="#E28E8A" stop-opacity="0"/>
-                </radialGradient>
-                <linearGradient id="dGlove" x1=".2" y1="0" x2=".8" y2="1">
-                  <stop offset="0" stop-color="#FFFAF1"/><stop offset=".55" stop-color="#EFE5D6"/><stop offset="1" stop-color="#C9BBA8"/>
-                </linearGradient>
-              </defs>
-
-              <g class="dealer-breathe">
-                <!-- ══ torso ══ -->
-                <path d="M200 152 L150 168 Q120 182 112 222 L98 300 L302 300 L288 222 Q280 182 250 168 Z" fill="url(#dShirt)"/>
-                <!-- satin lapels / vest -->
-                <path d="M200 170 L174 160 L190 300 L98 300 L112 222 Q120 182 150 168 Z" fill="url(#dVest)"/>
-                <path d="M200 170 L226 160 L210 300 L302 300 L288 222 Q280 182 250 168 Z" fill="url(#dVest)"/>
-                <!-- lapel highlight strips -->
-                <path d="M177 161 L192 300" stroke="url(#dVestLight)" stroke-width="9" stroke-linecap="round" opacity=".95"/>
-                <path d="M223 161 L208 300" stroke="url(#dVestLight)" stroke-width="9" stroke-linecap="round" opacity=".8"/>
-                <path d="M181 163 L195 298" stroke="url(#dGoldTrim)" stroke-width="1.2" opacity=".95"/>
-                <path d="M219 163 L205 298" stroke="url(#dGoldTrim)" stroke-width="1.2" opacity=".8"/>
-                <path d="M150 168 Q120 182 112 222 L98 300" fill="none" stroke="#FFE7B4" stroke-opacity=".2" stroke-width="2.4"/>
-                <path d="M250 168 Q280 182 288 222 L302 300" fill="none" stroke="#FFE7B4" stroke-opacity=".1" stroke-width="2.4"/>
-
-                <!-- ══ collar + bow tie ══ -->
-                <path d="M182 146 L200 164 L218 146 L214 134 L186 134 Z" fill="#F6EDE0"/>
-                <path d="M186 136 L200 164 L190 166 L180 144 Z" fill="#E3D6C2"/>
-                <path d="M214 136 L200 164 L210 166 L220 144 Z" fill="#D8C9B2"/>
-                <path d="M200 162 L176 150 L178 174 Z" fill="#191013"/>
-                <path d="M200 162 L224 150 L222 174 Z" fill="#0E090B"/>
-                <path d="M200 162 L176 150 L178 174 Z" fill="#FF7A88" opacity=".16"/>
-                <path d="M200 155 L190 159 L200 169 L210 159 Z" fill="url(#dGoldTrim)"/>
-                <path d="M200 158 L196 161 L200 165 L204 161 Z" fill="#FFF3D2" opacity=".8"/>
-
-                <!-- ══ vest details ══ -->
-                <circle cx="200" cy="216" r="2.6" fill="url(#dGoldTrim)"/>
-                <circle cx="200" cy="242" r="2.6" fill="url(#dGoldTrim)"/>
-                <circle cx="200" cy="268" r="2.6" fill="url(#dGoldTrim)"/>
-                <path d="M214 216 q20 10 16 28" fill="none" stroke="url(#dGoldTrim)" stroke-width="1.3" opacity=".7"/>
-                <rect x="230" y="232" width="28" height="10" rx="2.5" fill="#0F0C09" stroke="url(#dGoldTrim)" stroke-opacity=".75" stroke-width="1"/>
-                <text x="244" y="239.4" text-anchor="middle" font-family="Georgia,serif" font-size="5.6" fill="#E8C783" letter-spacing=".7">ENP</text>
-
-                <!-- ══ neck ══ -->
-                <path d="M187 108 h26 v30 q-13 12 -26 0 Z" fill="url(#dSkin)"/>
-                <path d="M187 122 q13 11 26 0 v8 q-13 11 -26 0 Z" fill="#B27E5C" opacity=".4"/>
-
-                <!-- ══ head ══ -->
-                <g class="dealer-head">
-                  <!-- hair silhouette behind -->
-                  <path d="M200 38 c27 0 39 19 39 45 c0 12 -2 23 -6 31 l-9 -3 c4 -8 5 -17 5 -28 c0 -22 -11 -33 -29 -33 c-18 0 -29 11 -29 33 c0 11 1 20 5 28 l-9 3 c-4 -8 -6 -19 -6 -31 c0 -26 12 -45 39 -45 Z" fill="url(#dHair)"/>
-                  <!-- face -->
-                  <path d="M200 50 c18 0 28 14 28 36 c0 16 -3 30 -9 39 c-6 9 -12 13 -19 13 c-7 0 -13 -4 -19 -13 c-6 -9 -9 -23 -9 -39 c0 -22 10 -36 28 -36 Z" fill="url(#dSkin)"/>
-                  <!-- jaw + neck shadow -->
-                  <path d="M185 118 q15 10 30 0 q-4 12 -15 12 q-11 0 -15 -12 Z" fill="#C79372" opacity=".28"/>
-                  <!-- ears -->
-                  <ellipse cx="171" cy="88" rx="5" ry="8" fill="url(#dSkin)"/>
-                  <ellipse cx="229" cy="88" rx="5" ry="8" fill="url(#dSkin)"/>
-                  <circle cx="171" cy="100" r="2.3" fill="url(#dGoldTrim)"/>
-                  <circle cx="229" cy="100" r="2.3" fill="url(#dGoldTrim)"/>
-                  <!-- blush -->
-                  <ellipse cx="182" cy="99" rx="8" ry="5.5" fill="url(#dCheek)"/>
-                  <ellipse cx="218" cy="99" rx="8" ry="5.5" fill="url(#dCheek)"/>
-                  <!-- fringe sweep -->
-                  <path d="M171 82 c0 -25 13 -39 29 -39 c16 0 29 14 29 39 c-6 -17 -15 -25 -27 -25 c-6 0 -11 4 -15 10 c-4 6 -9 11 -16 15 Z" fill="url(#dHair)"/>
-                  <path d="M178 64 q15 -12 30 -2" stroke="#6B4842" stroke-width="1" fill="none" opacity=".55"/>
-                  <path d="M173 86 c-3 12 -3 24 -1 34 l6 -1 c-2 -10 -2 -21 0 -32 Z" fill="url(#dHairFront)"/>
-                  <path d="M227 86 c3 12 3 24 1 34 l-6 -1 c2 -10 2 -21 0 -32 Z" fill="url(#dHairFront)"/>
-                  <!-- brows -->
-                  <path d="M183 83 q7 -4 13 -1" stroke="#3A2520" stroke-width="2" fill="none" stroke-linecap="round"/>
-                  <path d="M204 82 q6 -3 13 1" stroke="#3A2520" stroke-width="2" fill="none" stroke-linecap="round"/>
-                  <!-- eyes -->
-                  <g class="dealer-eyes">
-                    <path d="M182 90 q8 -6 15 0 q-8 5 -15 0 Z" fill="#FDF7EC"/>
-                    <path d="M203 90 q8 -6 15 0 q-8 5 -15 0 Z" fill="#FDF7EC"/>
-                    <circle cx="189.5" cy="90" r="2.7" fill="#2C1C18"/>
-                    <circle cx="210.5" cy="90" r="2.7" fill="#2C1C18"/>
-                    <circle cx="190.4" cy="89.1" r=".95" fill="#FFFCF3"/>
-                    <circle cx="211.4" cy="89.1" r=".95" fill="#FFFCF3"/>
-                    <path d="M182 90 q8 -7 15 -1" stroke="#2A1A16" stroke-width="1.5" fill="none" stroke-linecap="round"/>
-                    <path d="M203 89 q8 -6 15 1" stroke="#2A1A16" stroke-width="1.5" fill="none" stroke-linecap="round"/>
-                  </g>
-                  <!-- nose + lips -->
-                  <path d="M200 93 q-2 7 1 10 q2 1 3 -1" stroke="#C08A64" stroke-width="1.3" fill="none" stroke-linecap="round"/>
-                  <path d="M193 112 q7 4 14 0 q-3 5 -7 5 q-4 0 -7 -5 Z" fill="#B94F5E"/>
-                  <path d="M193 112 q7 2 14 0" stroke="#8E3441" stroke-width=".8" fill="none" opacity=".75"/>
-                  <!-- rim light -->
-                  <ellipse cx="200" cy="78" rx="30" ry="38" fill="url(#dRim)"/>
-                </g>
-
-                <!-- ══ left arm ══ -->
-                <g class="dealer-arm arm-l">
-                  <path d="M152 168 C132 180 120 208 114 244 C110 264 108 278 108 290 L142 292 C142 276 144 258 148 238 C152 214 160 192 168 182 Z" fill="url(#dVest)"/>
-                  <path d="M152 168 C132 180 120 208 114 244" fill="none" stroke="#FFE7B4" stroke-opacity=".16" stroke-width="2.4"/>
-                  <path d="M106 286 L144 288 L143 301 L106 299 Z" fill="#0B0B0F" stroke="url(#dGoldTrim)" stroke-opacity=".3" stroke-width="1"/>
-                  <ellipse cx="124" cy="292" rx="18" ry="13" fill="url(#dGlove)"/>
-                  <path d="M112 290 q12 -5 24 0" stroke="#A9967E" stroke-width="1" fill="none" opacity=".55"/>
-                  <path d="M114 295 h20 M116 299 h16" stroke="#B5A48C" stroke-width=".8" fill="none" opacity=".45"/>
-                  <path d="M106 291 q-4 3 -3 6" stroke="#C9BBA8" stroke-width="1.4" fill="none" opacity=".7"/>
-                </g>
-                <!-- ══ right arm ══ -->
-                <g class="dealer-arm arm-r">
-                  <path d="M248 168 C268 180 280 208 286 244 C290 264 292 278 292 290 L258 292 C258 276 256 258 252 238 C248 214 240 192 232 182 Z" fill="url(#dVest)"/>
-                  <path d="M248 168 C268 180 280 208 286 244" fill="none" stroke="#FFE7B4" stroke-opacity=".1" stroke-width="2.4"/>
-                  <path d="M294 286 L256 288 L257 301 L294 299 Z" fill="#0B0B0F" stroke="url(#dGoldTrim)" stroke-opacity=".3" stroke-width="1"/>
-                  <ellipse cx="276" cy="292" rx="18" ry="13" fill="url(#dGlove)"/>
-                  <path d="M264 290 q12 -5 24 0" stroke="#A9967E" stroke-width="1" fill="none" opacity=".55"/>
-                  <path d="M264 295 h20 M266 299 h16" stroke="#B5A48C" stroke-width=".8" fill="none" opacity=".45"/>
-                  <path d="M294 291 q4 3 3 6" stroke="#C9BBA8" stroke-width="1.4" fill="none" opacity=".7"/>
-                </g>
-
-                <ellipse cx="200" cy="299" rx="126" ry="7" fill="#000" opacity=".4"/>
-              </g>
-            </svg>
-</div></div>
+        <div class="dealer" id="dealer" aria-hidden="true">
+          <div class="dp-blur"></div>
+          <img class="dp-img" src="assets/dealer.jpg" alt="" draggable="false" decoding="async">
+          <div class="dp-tint"></div>
+          <div class="dp-spot"></div>
+          <div class="dp-fade"></div>
+        </div>
+      </div>
 
       <div class="felt" id="felt">
         <canvas id="fx" class="fx-canvas" aria-hidden="true"></canvas>
@@ -336,9 +204,9 @@
       <div class="rb-stats">
         <span class="tie-rate" id="tieRate">0%</span>
         <span class="hand-no">#<b id="statHands">0</b></span>
-        <span class="sp p">P<b id="statP">0</b></span>
-        <span class="sp b">B<b id="statB">0</b></span>
-        <span class="sp t">T<b id="statT">0</b></span>
+        <span class="sp p"><i>P</i><b id="statP">0</b></span>
+        <span class="sp b"><i>B</i><b id="statB">0</b></span>
+        <span class="sp t"><i>T</i><b id="statT">0</b></span>
         <span class="pred p" id="predP"><i></i><i></i><i></i><em>/</em></span>
         <span class="pred b" id="predB"><i></i><i></i><i></i><em>/</em></span>
         <span class="road-count" id="roadCount" hidden>0</span>
@@ -427,6 +295,10 @@
         <button class="chip" data-chip="50000" aria-label="5만"><i>5만</i></button>
         <button class="chip" data-chip="100000" aria-label="10만"><i>10만</i></button>
         <button class="chip" data-chip="500000" aria-label="50만"><i>50만</i></button>
+        <button class="chip" data-chip="1000000" aria-label="100만"><i>100만</i></button>
+        <button class="chip" data-chip="5000000" aria-label="500만"><i>500만</i></button>
+        <button class="chip" data-chip="10000000" aria-label="1천만"><i>1천만</i></button>
+        <button class="chip" data-chip="100000000" aria-label="1억"><i>1억</i></button>
       </div>
 
       <div class="ctrl-row">
@@ -456,7 +328,7 @@
     <!-- ─────────── STATUS BAR ─────────── -->
     <footer class="statusbar">
       <span class="st-stake">총 베팅 <b id="totalStake">₩0</b></span>
-      <span class="st-bal">잔고 <b id="statusBalance">₩1,000,000</b></span>
+      <span class="st-bal">잔고 <b id="statusBalance">₩10억</b></span>
       <span class="st-table"><b id="tableName">벚꽃 바카라</b><i id="statusLimit">₩1,000–5,000,000</i></span>
       <span class="st-note" id="tableNote">8덱 슈</span>
     </footer>
@@ -512,9 +384,9 @@
       <section class="m-sec">
         <h3>가상 머니</h3>
         <div class="m-money">
-          <div><span>현재 잔액</span><b id="modalBalance">₩1,000,000</b></div>
+          <div><span>현재 잔액</span><b id="modalBalance">₩1,000,000,000</b></div>
           <div class="m-money-actions">
-            <button class="btn ghost sm" id="modalRefill">+₩1,000,000 충전</button>
+            <button class="btn ghost sm" id="modalRefill">+₩10억 충전</button>
             <button class="btn danger sm" id="modalReset">잔액 초기화</button>
           </div>
         </div>
@@ -561,6 +433,8 @@
         <h3>푼토 방코 규칙</h3>
         <ul class="m-list">
           <li>8덱 416장, 피셔-예이츠 셔플. 14장 이하가 되면 자동 셔플.</li>
+          <li>베팅 카운트다운 20초가 0이 되면 자동으로 베팅이 마감되고 카드가 딜링·정산됩니다. 베팅하지 않아도 다음 라운드가 계속 진행됩니다.</li>
+          <li>슈가 새로 시작되면 출목표(빅로드·중국점·비드로드)는 새로 시작하고 누적 손익은 유지됩니다.</li>
           <li>내추럴 8·9는 양쪽 모두 스탠드.</li>
           <li>플레이어 0–5 드로우, 6–7 스탠드.</li>
           <li>뱅커는 플레이어 서드카드에 따라 아래 표대로 드로우합니다.</li>

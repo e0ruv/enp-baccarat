@@ -7,6 +7,11 @@ side-bet settlement (player/banker bonus, perfect pair 하나/더블, either pai
 bet moving between zones by drag and long-press (+ undo), double-tap zoom guards,
 squeeze, accounts, hidden admin (6160), GitHub sync panel, zero console errors and
 zero overflow at 390x844 and 1440x900.
+
+NEW: Evolution-style white road board (full 6-row grid, circular bead badges),
+photo dealer, 10 circular casino chips (1천~1억), 10억 table limit, and the
+auto-running live shoe (countdown 0 → auto deal → settle → next round, paused while
+modals are open and restarted with a fresh road on a new shoe).
 """
 import functools
 import http.server
@@ -239,9 +244,28 @@ def open_page(browser, viewport, mobile=False, scale=2):
 
 
 def bet(page, chip, spots):
+    page.wait_for_function("window.__bac.state.phase === 'betting'", timeout=30000)
+    if page.eval_on_selector("#result", "e=>e.classList.contains('on')"):
+        tclick(page, "#resultClose")
+        page.wait_for_timeout(120)
     page.click(f'#chipRow .chip[data-chip="{chip}"]')
     for spot in spots:
         page.click(f'[data-spot="{spot}"]')
+
+
+def deal_now(page):
+    page.wait_for_function("window.__bac.state.phase === 'betting'", timeout=30000)
+    page.click("#dealBtn")
+
+
+def hand_counts(page):
+    return page.evaluate("""() => {
+      const h = window.__bac.state.history;
+      return {n: h.length,
+              p: h.filter(x => x.winner === 'player').length,
+              b: h.filter(x => x.winner === 'banker').length,
+              t: h.filter(x => x.winner === 'tie').length};
+    }""")
 
 
 def clear(page):
@@ -275,6 +299,43 @@ def run_desktop(browser):
       status: !!document.querySelector('.statusbar')
     })""")
     check("three-stage structure", all(ids.values()), str(ids))
+
+    # ── NEW: white Evolution-style road board (grid drawn even when empty)
+    road = page.evaluate("""() => {
+      const b = document.querySelector('.roadboard');
+      const big = document.querySelector('.bigroad');
+      const cells = document.querySelectorAll('.br-cell');
+      const cs = getComputedStyle(b);
+      return { bg: cs.backgroundColor,
+               bigBg: getComputedStyle(big).backgroundColor,
+               cells: cells.length,
+               blank: cells.length - document.querySelectorAll('.br-cell.p, .br-cell.b').length,
+               cols: getComputedStyle(big).gridTemplateColumns.split(' ').length,
+               rows: getComputedStyle(big).gridTemplateRows.split(' ').length,
+               beadRows: getComputedStyle(document.querySelector('.bead')).gridTemplateRows.split(' ').length };
+    }""")
+    check("road board white background", road["bg"] == "rgb(255, 255, 255)", road["bg"])
+    check("big road draws 6 rows", road["rows"] == 6, str(road["rows"]))
+    check("big road empty grid cells", road["cols"] >= 9 and road["cells"] == road["cols"] * 6,
+          f"{road['cells']} cells / {road['cols']} cols")
+    check("big road cells blank before play", road["blank"] == road["cells"], str(road["blank"]))
+    check("bead plate 6 rows", road["beadRows"] == 6, str(road["beadRows"]))
+    check("derived roads drawn as grids", page.eval_on_selector_all(".mr-cell", "e=>e.length") >= 3 * 6 * 6)
+
+    # ── NEW: photo dealer replaces the SVG illustration
+    dealer = page.evaluate("""() => {
+      const img = document.querySelector('.dp-img');
+      const f = document.getElementById('dealer');
+      return {src: img ? img.getAttribute('src') : null, nat: img ? img.naturalWidth : 0,
+              svg: document.querySelectorAll('.dealer-svg').length,
+              h: img ? Math.round(img.getBoundingClientRect().height) : 0,
+              top: img ? Math.round(img.getBoundingClientRect().top - f.getBoundingClientRect().top) : 0,
+              feltTop: Math.round(document.getElementById('felt').getBoundingClientRect().top - f.getBoundingClientRect().top)};
+    }""")
+    check("dealer photo loaded", dealer["nat"] > 0 and dealer["src"].endswith("dealer.jpg"), str(dealer))
+    check("SVG dealer removed", dealer["svg"] == 0, str(dealer["svg"]))
+    check("dealer photo bleeds into the table", dealer["top"] <= 20 and dealer["h"] > dealer["feltTop"] - 20,
+          str(dealer))
     boxes = page.evaluate("""() => {
       const r = (s) => { const e = document.querySelector(s); const b = e.getBoundingClientRect();
         return [Math.round(b.top), Math.round(b.bottom), Math.round(b.left), Math.round(b.right)]; };
@@ -302,6 +363,46 @@ def run_desktop(browser):
           page.inner_text("#payPerfect"))
     check("either pair payout", page.inner_text("#payEither") == "5:1", page.inner_text("#payEither"))
     check("tie zone labelled 무", "무" in page.inner_text('[data-spot="tie"]'), page.inner_text('[data-spot="tie"]'))
+
+    # ── NEW: 10 circular casino chips (1천 ~ 1억)
+    chips = page.evaluate("() => Array.from(document.querySelectorAll('#chipRow .chip')).map(c => Number(c.dataset.chip))")
+    check("ten casino chips", chips == [1000, 5000, 10000, 50000, 100000, 500000, 1000000, 5000000, 10000000, 100000000],
+          str(chips))
+    chip_shape = page.evaluate("""() => {
+      const c = document.querySelector('.chip');
+      const r = c.getBoundingClientRect();
+      return { radius: getComputedStyle(c).borderRadius, w: Math.round(r.width), h: Math.round(r.height),
+               stripe: getComputedStyle(c, '::before').backgroundImage,
+               tones: new Set(Array.from(document.querySelectorAll('#chipRow .chip'))
+                        .map(x => getComputedStyle(x).getPropertyValue('--c-bg').trim())).size };
+    }""")
+    check("chips are round", chip_shape["radius"].startswith("50%") and abs(chip_shape["w"] - chip_shape["h"]) <= 1, str(chip_shape))
+    check("chip edge stripes", "repeating-conic-gradient" in chip_shape["stripe"], chip_shape["stripe"][:40])
+    check("each chip has its own colour", chip_shape["tones"] == 10, str(chip_shape["tones"]))
+    check("table limit label 10억", "10억" in page.inner_text("#statusLimit"), page.inner_text("#statusLimit"))
+
+    # 1억 칩으로 여러 번 베팅 (테이블 한도 10억)
+    page.evaluate("window.__bac.state.balance = 3000000000; window.__bac.renderAll()")
+    page.click('#chipRow .chip[data-chip="100000000"]')
+    check("1억 chip selected", page.evaluate("window.__bac.state.chip") == 100000000)
+    page.click('[data-spot="player"]')
+    page.click('[data-spot="player"]')
+    check("1억 chip places ₩2억", page.evaluate("window.__bac.state.bets.player") == 200000000,
+          str(page.evaluate("window.__bac.state.bets.player")))
+    badge = page.evaluate("""() => { const b = document.querySelector('.bet-chip[data-betchip="player"]');
+        return {cls: b.className, txt: b.textContent.trim(), round: getComputedStyle(b).borderRadius,
+                w: Math.round(b.getBoundingClientRect().width)}; }""")
+    check("bet badge is a chip", "tone-100000000" in badge["cls"] and badge["round"].startswith("50%") and badge["txt"] == "2억", str(badge))
+    for _ in range(9):
+        page.click('[data-spot="player"]')
+    check("stake stops at the ₩10억 table limit", page.evaluate("window.__bac.state.bets.player") == 1000000000,
+          str(page.evaluate("window.__bac.state.bets.player")))
+    page.click('[data-spot="player"]')
+    check("over-limit bet rejected", page.evaluate("window.__bac.state.bets.player") == 1000000000)
+    tclick(page, "#clearBtn")
+    page.click('#chipRow .chip[data-chip="10000"]')
+    check("clear refunds 1억 chips", page.evaluate("window.__bac.state.balance") == 3000000000,
+          str(page.evaluate("window.__bac.state.balance")))
 
     # ── mode switching
     expects = {"speed": ("스피드 바카라", False), "sakura": ("벚꽃 바카라", True), "snow": ("눈꽃 바카라", True)}
@@ -383,7 +484,7 @@ def run_desktop(browser):
     bet(page, 10000, ["player"])
     bal_before = page.evaluate("window.__bac.state.balance")
     hands0 = page.evaluate("window.__bac.state.stats.hands")
-    page.click("#dealBtn")
+    deal_now(page)
     page.wait_for_function("window.__bac.state.phase === 'reveal' || window.__bac.state.phase === 'betting'", timeout=9000)
     bonus = page.evaluate("window.__bac.state.bonus")
     check("bonus round 1-5 cards", 1 <= len(bonus) <= 5, str(len(bonus)))
@@ -412,11 +513,27 @@ def run_desktop(browser):
           page.eval_on_selector("#handBadge", "e=>e.textContent"))
     check("winning score badge highlighted",
           page.eval_on_selector_all(".score-badge.is-win", "e=>e.length") == (0 if state["hand"]["winner"] == "tie" else 1))
-    check("bead plate updated", page.eval_on_selector_all(".bead-cell", "e=>e.length") == state["hist"])
-    check("big road updated", page.eval_on_selector_all(".br-cell", "e=>e.length") >= 1)
-    check("stat bar counts", page.inner_text("#statP") == str(state["stats"]["player"]) and
-          page.inner_text("#statB") == str(state["stats"]["banker"]),
-          f"{page.inner_text('#statP')}/{page.inner_text('#statB')}")
+    counts = hand_counts(page)
+    check("bead plate holds every hand",
+          page.eval_on_selector_all(".bead-cell.p, .bead-cell.b, .bead-cell.t", "e=>e.length") == min(counts["n"], 24),
+          f"{page.eval_on_selector_all('.bead-cell.p, .bead-cell.b, .bead-cell.t', 'e=>e.length')} vs {counts['n']}")
+    bead_style = page.evaluate("""() => {
+      const b = document.querySelector('.bead-cell .bch');
+      if (!b) return null;
+      const r = b.getBoundingClientRect();
+      return {radius: getComputedStyle(b).borderRadius, w: Math.round(r.width), h: Math.round(r.height),
+              bg: getComputedStyle(b).backgroundColor};
+    }""")
+    check("bead badges are round", bead_style and bead_style["radius"].startswith("50%") and abs(bead_style["w"] - bead_style["h"]) <= 1,
+          str(bead_style))
+    check("bead badge colour by side",
+          bead_style and bead_style["bg"] in ("rgb(46, 100, 214)", "rgb(226, 58, 70)", "rgb(18, 160, 90)"),
+          str(bead_style and bead_style["bg"]))
+    check("big road marks drawn", page.eval_on_selector_all(".br-cell.p, .br-cell.b", "e=>e.length") >= 1)
+    check("stat bar counts", page.inner_text("#statP") == str(counts["p"]) and
+          page.inner_text("#statB") == str(counts["b"]) and
+          page.inner_text("#statHands") == str(counts["n"]),
+          f"{page.inner_text('#statP')}/{page.inner_text('#statB')}/{page.inner_text('#statHands')}")
 
     # ── rebet
     tclick(page, "#resultClose")
@@ -431,7 +548,7 @@ def run_desktop(browser):
     for _ in range(6):
         clear(page)
         page.click('[data-spot="banker"]')
-        page.click("#dealBtn")
+        deal_now(page)
         page.wait_for_function("window.__bac.state.phase === 'betting'", timeout=25000)
         page.wait_for_timeout(180)
     cols = page.evaluate("BaccaratEngine.bigRoadColumns(window.__bac.state.history).length")
@@ -442,17 +559,63 @@ def run_desktop(browser):
     bal_pre = page.evaluate("window.__bac.state.balance")
     page.click("#refillBtn")
     page.wait_for_timeout(150)
-    check("refill +1,000,000", page.evaluate("window.__bac.state.balance") == bal_pre + 1000000)
+    check("refill +₩10억", page.evaluate("window.__bac.state.balance") == bal_pre + 1000000000,
+          str(page.evaluate("window.__bac.state.balance") - bal_pre))
     page.click("#shoeEl")
     page.wait_for_timeout(200)
     check("shoe click reshuffles 416", page.evaluate("window.__bac.state.shoe.remaining") == 416)
     page.evaluate("window.__bac.state.shoe.cards.length = 10")
     page.click('[data-spot="player"]')
-    page.click("#dealBtn")
+    deal_now(page)
     page.wait_for_function("window.__bac.state.phase === 'betting'", timeout=25000)
     page.wait_for_timeout(200)
     check("auto reshuffle <=14", page.evaluate("window.__bac.state.shoe.remaining") > 380,
           str(page.evaluate("window.__bac.state.shoe.remaining")))
+    check("new shoe starts a fresh road", page.evaluate("window.__bac.state.history.length") == 1,
+          str(page.evaluate("window.__bac.state.history.length")))
+    clear(page)
+
+    # ── NEW: live shoe auto-progress (관전만 해도 슈가 계속 돈다)
+    clear(page)
+    h_before = page.evaluate("window.__bac.state.history.length")
+    bal_before = page.evaluate("window.__bac.state.balance")
+    page.wait_for_function(f"window.__bac.state.history.length > {h_before}", timeout=40000)
+    page.wait_for_function("window.__bac.state.phase === 'betting'", timeout=30000)
+    page.wait_for_timeout(400)
+    check("auto deal fires at countdown 0 without a bet",
+          page.evaluate("window.__bac.state.history.length") == h_before + 1)
+    check("spectator round costs nothing", page.evaluate("window.__bac.state.balance") == bal_before)
+    check("spectator round shows no result sheet",
+          not page.eval_on_selector("#result", "e=>e.classList.contains('on')"))
+    clock_now = page.inner_text("#clockNum")
+    check("countdown restarts for the next round", clock_now.isdigit() and int(clock_now) >= 15, clock_now)
+
+    # 모달이 열려 있으면 자동 진행 정지
+    page.click("#infoBtn")
+    page.wait_for_timeout(400)
+    c1 = page.inner_text("#clockNum")
+    h1 = page.evaluate("window.__bac.state.history.length")
+    page.wait_for_timeout(3400)
+    c2 = page.inner_text("#clockNum")
+    h2 = page.evaluate("window.__bac.state.history.length")
+    check("countdown paused while a modal is open", c1 == c2 and h1 == h2, f"{c1}->{c2}, {h1}->{h2}")
+    page.click("#modalClose")
+    page.wait_for_timeout(300)
+
+    # 베팅해 둔 라운드도 카운트다운이 끝나면 자동 정산
+    page.evaluate("window.__bac.state.balance = 1000000000; window.__bac.renderAll()")
+    page.click('#chipRow .chip[data-chip="1000000"]')
+    page.click('[data-spot="banker"]')
+    bal_bet = page.evaluate("window.__bac.state.balance")
+    page.wait_for_function(f"window.__bac.state.history.length > {h2}", timeout=40000)
+    page.wait_for_function("window.__bac.state.phase === 'betting'", timeout=30000)
+    page.wait_for_timeout(400)
+    auto_settle = page.evaluate("""() => { const s = window.__bac.state;
+        const r = BaccaratEngine.settleRound({bets: s.lastBets, result: s.hand, mode: s.mode, noCommission: s.settings.noCommission, bonus: s.bonus});
+        return {balance: s.balance, returned: r.returned, lastBets: s.lastBets.banker}; }""")
+    check("auto deal settles the placed bet", auto_settle["lastBets"] == 1000000 and
+          auto_settle["balance"] == bal_bet + auto_settle["returned"],
+          str(auto_settle))
     clear(page)
 
     # ── squeeze
@@ -463,7 +626,7 @@ def run_desktop(browser):
     page.click("#modalClose")
     page.wait_for_timeout(200)
     page.click('[data-spot="banker"]')
-    page.click("#dealBtn")
+    deal_now(page)
     page.wait_for_function("window.__bac.state.phase === 'reveal'", timeout=9000)
     check("squeeze cards face down", page.eval_on_selector_all(".card.up", "e=>e.length") == 0)
     check("squeeze hint", page.eval_on_selector("#squeezeHint", "e=>e.classList.contains('on')"))
@@ -506,7 +669,7 @@ def run_desktop(browser):
         page.click('[data-spot="player"]')
         page.click('[data-spot="banker"]')
         page.click('[data-spot="playerBonus"]')
-        page.click("#dealBtn")
+        deal_now(page)
         page.wait_for_function("window.__bac.state.phase === 'reveal'", timeout=15000)
         winner = page.evaluate("window.__bac.state.hand.winner")
         if winner == "tie":
@@ -569,7 +732,7 @@ def run_desktop(browser):
     page.wait_for_timeout(900)
     check("header shows nickname", page.inner_text("#accName") == "엔피테스터", page.inner_text("#accName"))
     check("logout button visible", page.eval_on_selector("#logoutBtn", "e=>!e.hidden"))
-    check("signup balance 1,000,000", page.evaluate("window.__bac.state.balance") == 1000000,
+    check("signup balance ₩10억", page.evaluate("window.__bac.state.balance") == 1000000000,
           str(page.evaluate("window.__bac.state.balance")))
 
     # ── hidden admin
@@ -594,15 +757,15 @@ def run_desktop(browser):
     page.fill("#admAmount", "100000")
     page.click('.adm-user[data-uid="enptester"] button[data-op="plus"]')
     page.wait_for_timeout(350)
-    check("admin +100,000", page.evaluate("window.__bac.state.balance") == 1100000,
+    check("admin +100,000", page.evaluate("window.__bac.state.balance") == 1000100000,
           str(page.evaluate("window.__bac.state.balance")))
-    check("header balance live update", page.inner_text("#balance") == "1,100,000", page.inner_text("#balance"))
+    check("header balance live update", page.inner_text("#balance") == "10억", page.inner_text("#balance"))
     page.click('.adm-user[data-uid="enptester"] button[data-op="minus"]')
     page.wait_for_timeout(300)
-    check("admin -100,000", page.evaluate("window.__bac.state.balance") == 1000000)
+    check("admin -100,000", page.evaluate("window.__bac.state.balance") == 1000000000)
     page.click('.adm-presets button[data-preset="1000000"]')
     page.wait_for_timeout(300)
-    check("admin preset +100만", page.evaluate("window.__bac.state.balance") == 2000000,
+    check("admin preset +100만", page.evaluate("window.__bac.state.balance") == 1001000000,
           str(page.evaluate("window.__bac.state.balance")))
     page.click("#adminClose")
     page.wait_for_timeout(250)
@@ -612,7 +775,7 @@ def run_desktop(browser):
     page.wait_for_function("window.__SPLASH_DONE__ === true", timeout=6000)
     page.wait_for_timeout(300)
     check("session persisted", page.inner_text("#accName") == "엔피테스터", page.inner_text("#accName"))
-    check("balance persisted", page.evaluate("window.__bac.state.balance") == 2000000,
+    check("balance persisted", page.evaluate("window.__bac.state.balance") == 1001000000,
           str(page.evaluate("window.__bac.state.balance")))
 
     # ── logout / login
@@ -627,7 +790,7 @@ def run_desktop(browser):
     page.fill("#authPin", "2468")
     page.click("#authSubmit")
     page.wait_for_timeout(700)
-    check("login restores balance", page.evaluate("window.__bac.state.balance") == 2000000,
+    check("login restores balance", page.evaluate("window.__bac.state.balance") == 1001000000,
           str(page.evaluate("window.__bac.state.balance")))
 
     # ── mode screenshots
@@ -637,7 +800,7 @@ def run_desktop(browser):
         clear(page)
         page.click('#chipRow .chip[data-chip="50000"]')
         page.click('[data-spot="banker"]')
-        page.click("#dealBtn")
+        deal_now(page)
         page.wait_for_function("window.__bac.state.phase === 'betting'", timeout=25000)
         page.wait_for_timeout(300)
         tclick(page, "#resultClose")
@@ -677,6 +840,17 @@ def run_mobile(browser):
     check("mobile 3-stage vertical order", ok_order, str(boxes))
     check("dealer stage keeps height", boxes["dealer"][2] >= 180, str(boxes["dealer"]))
     check("roads always visible (no drawer)", boxes["roads"][2] >= 120, str(boxes["roads"]))
+
+    chip_row = page.evaluate("""() => {
+      const row = document.querySelector('.chip-row').getBoundingClientRect();
+      const chips = Array.from(document.querySelectorAll('#chipRow .chip')).map(c => c.getBoundingClientRect());
+      return {n: chips.length, rowRight: Math.round(row.right), lastRight: Math.round(chips[chips.length-1].right),
+              min: Math.round(Math.min(...chips.map(c => c.width))),
+              rowH: Math.round(row.height)};
+    }""")
+    check("mobile shows all 10 chips in one row", chip_row["n"] == 10 and chip_row["lastRight"] <= chip_row["rowRight"] + 1,
+          str(chip_row))
+    check("mobile chip touch size", chip_row["min"] >= 26, str(chip_row["min"]))
 
     small = page.evaluate("""() => {
       const bad = [];
@@ -768,7 +942,7 @@ def run_mobile(browser):
     page.click('#chipRow .chip[data-chip="10000"]')
     page.click('[data-spot="banker"]')
     bal_before = page.evaluate("window.__bac.state.balance")
-    page.click("#dealBtn")
+    deal_now(page)
     page.wait_for_function("window.__bac.state.phase === 'betting'", timeout=25000)
     page.wait_for_timeout(500)
     mob = page.evaluate("""() => { const s = window.__bac.state;
@@ -805,7 +979,7 @@ def run_mobile(browser):
     check("mobile admin opens", page.eval_on_selector("#adminBack", "e=>!e.hidden"))
     page.click('.adm-user[data-uid="mobuser"] button[data-op="plus"]')
     page.wait_for_timeout(300)
-    check("mobile admin adjust", page.evaluate("window.__bac.state.balance") == 1100000,
+    check("mobile admin adjust", page.evaluate("window.__bac.state.balance") == 1000100000,
           str(page.evaluate("window.__bac.state.balance")))
     page.screenshot(path=os.path.join(ROOT, "preview-admin-mobile.png"))
     page.click("#adminClose")
