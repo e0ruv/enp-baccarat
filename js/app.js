@@ -10,8 +10,7 @@
   const SYM = E.SUIT_SYMBOL;
 
   const CHIPS = [1000, 5000, 10000, 50000, 100000, 500000, 1000000, 5000000, 10000000, 100000000];
-  const MAX_CHIP = 100000000;
-  const TABLE_MAX_BET = 1000000000;   // 테이블 최대 베팅 한도 ₩10억
+  const MIN_CHIP = 1000;
   const START_BALANCE = 1000000000;   // 가상 머니 기본 지급 ₩10억
   const LS_KEY = 'enp_baccarat_v1';
 
@@ -472,16 +471,17 @@
     const n = hist.length;
     const ties = hist.filter((h) => h.winner === 'tie').length;
     if (el.tieRate) el.tieRate.textContent = (n ? Math.round((ties / n) * 100) : 0) + '%';
-    const last = hist.slice(-3).map((h) => h.winner);
     [[el.predP, 'player'], [el.predB, 'banker']].forEach(([box, side]) => {
       if (!box) return;
-      // 최근 3판: 이 진영 = 속 빈 링, 반대 진영 = 속 찬 점, 무 = 빗금 (영상 표기)
+      // 3개 예고 점 = 중국점 1·2·3군: 이 진영이 다음 판에 이겼다고 가정한 출목표의 마지막 마크 색
+      // (1군 = 속 빈 링, 2군 = 속 찬 점, 3군 = 빗금 · 빨강 = r, 파랑 = b)
+      const dr = E.derivedRoads(hist.concat([{ winner: side }]));
+      const kinds = [dr.eye, dr.small, dr.cock].map((arr) => (arr.length ? arr[arr.length - 1].kind : null));
       Array.from(box.querySelectorAll('i')).forEach((dot, i) => {
-        const w = last[i];
-        dot.classList.remove('win', 'lose', 'tie', 'on');
-        if (!w) return;
-        dot.classList.add(w === 'tie' ? 'tie' : w === side ? 'win' : 'lose');
-        if (w === side) dot.classList.add('on');
+        dot.classList.remove('win', 'lose', 'tie', 'on', 'k-r', 'k-b');
+        const k = kinds[i];
+        if (!k) return;
+        dot.classList.add(k === 'r' ? 'k-r' : 'k-b');
       });
       box.classList.toggle('is-on', previewSide === side);
       box.setAttribute('aria-pressed', previewSide === side ? 'true' : 'false');
@@ -548,10 +548,7 @@
     if (el.payPerfect) el.payPerfect.textContent = `하나 ${p.perfectPair}:1 · 더블 ${cfg.perfectDouble}:1`;
     if (el.payEither) el.payEither.textContent = p.eitherPair + ':1';
 
-    if (el.statusLimit) {
-      const max = cfg.limit || TABLE_MAX_BET;
-      el.statusLimit.textContent = `₩1천–${compactNum(max)}`;
-    }
+    if (el.statusLimit) el.statusLimit.textContent = '₩1K–무제한';
 
     $$('.mode-btn').forEach((b) => b.classList.toggle('is-active', b.dataset.mode === S.mode));
   }
@@ -1058,10 +1055,6 @@
     if (S.phase !== 'betting') { toast('핸드 진행 중에는 베팅할 수 없습니다'); return false; }
     const amt = Math.max(0, Math.round(amount));
     if (!amt) return false;
-    if ((S.bets[spot] || 0) + amt > TABLE_MAX_BET) {
-      toast(`한 칸 최대 ${won(TABLE_MAX_BET)}까지 베팅할 수 있습니다`);
-      return false;
-    }
     const fee = feeFor(amt);
     if (amt + fee > S.balance) {
       toast('가상 머니가 부족합니다 · 충전을 눌러주세요');
@@ -1165,8 +1158,13 @@
     else toast('지난 베팅을 다시 걸었습니다');
   }
 
+  /** 칩 한 장의 상한 = 보유 잔액 (테이블 베팅 한도 없음) */
+  function chipCeil() {
+    return Math.max(MIN_CHIP, Math.floor(S.balance / 1000) * 1000);
+  }
+
   function setChip(v) {
-    S.chip = clamp(Math.round(v / 1000) * 1000, 1000, MAX_CHIP);
+    S.chip = clamp(Math.round(v / 1000) * 1000, MIN_CHIP, chipCeil());
     window.Sound && Sound.click();
     renderBetState();
     save();
@@ -1243,24 +1241,23 @@
   }
 
   /**
-   * 배당이 조금 더 자주 붙도록, 가끔(약 40%) 다음 카드 중 한 장과 같은 보너스 카드를 섞습니다.
-   * 게임 규칙(랭크+무늬 일치)은 그대로이고 히트 빈도만 살짝 보정합니다.
+   * 배당 매칭이 가끔만 붙도록, 아주 낮은 확률(약 12%)로 다음 카드 중 한 장과 같은
+   * 보너스 카드를 섞습니다. 게임 규칙(랭크+무늬 일치)은 그대로이고 히트 빈도만 살짝 보정합니다.
    */
   function boostBonusCards(cards, cfg) {
     if (!cards || !cards.length || !cfg || !cfg.bonus) return;
     if (S.shoe.cards.length < 8) return;
-    if (Math.random() > 0.4) return;
+    if (Math.random() > 0.12) return;
     const peek = S.shoe.cards.slice(-6);
     if (!peek.length) return;
     const pick = peek[Math.floor(Math.random() * peek.length)];
     if (!pick || cards.some((c) => c.id === pick.id)) return;
-    const mults = cfg.bonus.multipliers;
     const idx = Math.floor(Math.random() * cards.length);
     cards[idx] = {
       rank: pick.rank,
       suit: pick.suit,
       id: pick.id,
-      multiplier: mults[Math.floor(Math.random() * mults.length)]
+      multiplier: E.pickMultiplier(cfg.bonus.multipliers)
     };
   }
 
@@ -1969,21 +1966,27 @@
     el.bigroad.appendChild(frag);
 
     // ── 중국점 1·2·3군 (미리보기 중에는 다음 판을 가정한 출목표)
-    const derivedHist = previewSide ? hist.concat([{ winner: previewSide }]) : hist;
-    const derived = E.derivedRoads(derivedHist);
-    const lastMark = (arr) => (previewSide && arr && arr.length ? arr[arr.length - 1] : null);
-    paintMiniRoad(el.roadEye, derived.eye, lastMark(derived.eye));
-    paintMiniRoad(el.roadSmall, derived.small, lastMark(derived.small));
-    paintMiniRoad(el.roadCock, derived.cock, lastMark(derived.cock));
+    const baseDerived = E.derivedRoads(hist);
+    const derived = previewSide ? E.derivedRoads(hist.concat([{ winner: previewSide }])) : baseDerived;
+    // 새 마크가 실제로 생긴 도로만 그 마지막 칸을 깜빡인다
+    const lastMark = (key) => (previewSide && derived[key].length > baseDerived[key].length
+      ? derived[key][derived[key].length - 1] : null);
+    paintMiniRoad(el.roadEye, derived.eye, lastMark('eye'));
+    paintMiniRoad(el.roadSmall, derived.small, lastMark('small'));
+    paintMiniRoad(el.roadCock, derived.cock, lastMark('cock'));
   }
 
   function paintMiniRoad(box, marks, pvMark) {
     if (!box) return;
     box.innerHTML = '';
     const boxW = box.clientWidth || 90;
-    const COLS = Math.max(6, Math.floor(boxW / 8));
+    const boxH = box.clientHeight || 46;
+    // 칸 크기 = 빅로드 칸의 절반 남짓 (6행 높이에 맞춰) → 모바일에 걱 16~20열
+    const cell = Math.max(5, Math.min(9, (boxH / 6) * 0.8));
+    const COLS = Math.max(6, Math.min(40, Math.floor(boxW / cell)));
     box.style.gridTemplateColumns = `repeat(${COLS}, minmax(0, 1fr))`;
     const maxC = marks && marks.length ? marks.reduce((m, k) => Math.max(m, k.c), 0) : 0;
+    // 새 마크가 생겨도 오른쪽 끝을 넘지 않고 최신 열이 항상 보이게 민다
     const off = Math.max(0, maxC - (COLS - 1));
     const put = new Map();
     (marks || []).forEach((k) => {
@@ -2307,8 +2310,8 @@
       setChip(Number(chip.dataset.chip));
     });
 
-    el.halfBtn.addEventListener('click', () => setChip(Math.max(1000, S.chip / 2)));
-    el.doubleBtn.addEventListener('click', () => setChip(Math.min(MAX_CHIP, S.chip * 2)));
+    el.halfBtn.addEventListener('click', () => setChip(Math.max(MIN_CHIP, S.chip / 2)));
+    el.doubleBtn.addEventListener('click', () => setChip(S.chip * 2));
 
     el.rebetBtn.addEventListener('click', rebet);
     el.clearBtn.addEventListener('click', clearBets);

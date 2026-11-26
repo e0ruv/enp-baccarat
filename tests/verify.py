@@ -9,8 +9,8 @@ squeeze, accounts, hidden admin (6160), GitHub sync panel, zero console errors a
 zero overflow at 390x844 and 1440x900.
 
 NEW: Evolution-style white road board (full 6-row grid, circular bead badges),
-photo dealer, 10 circular casino chips (`1K`~`100M`, English K/M/B units), 10억 table
-limit, and the auto-running live shoe (10s countdown → auto deal → settle → result hold →
+photo dealer, 10 circular casino chips (`1K`~`100M`, English K/M/B units), no table bet
+limit (the balance is the only ceiling), and the auto-running live shoe (10s countdown → auto deal → settle → result hold →
 clean table → next 10s round, paused while modals are open and restarted with a
 fresh road on a new shoe).
 
@@ -19,6 +19,11 @@ per-card live score badges, big unobstructed 10s countdown (gold/red emphasis),
 centre P/B/T winner badge, result sheet only when there is a payout, table cleared
 at the next round, 7 bonus cards per round, petal/snow fall on bonus-win zones and
 banners, Ask-the-road P/B next-cell preview, and one-tap-one-bet protection.
+
+NEW (this pass): derived roads that add one mark per hand (also inside a winning
+streak), a 16~20-column china road that scrolls to the newest column, Ask-the-road
+pips that mirror the china roads' last mark, unlimited table betting (balance only),
+and bonus multipliers weighted to ×2/×3/×5.
 """
 import functools
 import http.server
@@ -230,8 +235,53 @@ ENGINE_JS = r"""
   if (cols.length !== 3 || cols[0].len !== 3 || cols[1].len !== 2 || cols[2].len !== 1) out.fail.push('bigRoadColumns ' + JSON.stringify(cols));
   const dr = E.derivedRoads([h('player'), h('player'), h('banker'), h('banker'), h('player')]);
   out.checked++;
-  if (dr.eye.length !== 2 || dr.small.length !== 1 || dr.cock.length !== 0) out.fail.push('derivedRoads ' + JSON.stringify(dr));
+  if (dr.eye.length !== 2 || dr.small.length !== 0 || dr.cock.length !== 0) out.fail.push('derivedRoads ' + JSON.stringify(dr));
   if (dr.eye.some((m) => ['r', 'b'].indexOf(m.kind) < 0)) out.fail.push('derived kind');
+
+  // ── NEW: 중국점은 '매 판' 하나씩 — 같은 쪽 연승 중에도 멈추지 않는다
+  const streak = [h('player'), h('player'), h('banker'), h('banker'), h('banker'),
+                  h('player'), h('player'), h('player'), h('player')];
+  const eyeS = E.derivedRoad(streak, 1);
+  out.checked++;
+  if (eyeS.length !== 6) out.fail.push('eye streak marks ' + eyeS.length);
+  if (eyeS.map((m) => m.kind).join('') !== 'rbbrrb') out.fail.push('eye streak kinds ' + eyeS.map((m) => m.kind).join(''));
+  out.checked++;
+  if (E.derivedRoad(streak.concat([h('player')]), 1).length !== 7) out.fail.push('a streak hand did not add one eye mark');
+  // 1·2·3군 모두 연승 4판째부터 매 판 1개씩
+  const base = [h('player'), h('player'), h('banker'), h('banker'), h('banker'), h('player'), h('player'), h('player')];
+  out.checked++;
+  for (let i = 1; i <= 6; i++) {
+    const a = base.concat(Array.from({length: i - 1}, () => h('player')));
+    const b = base.concat(Array.from({length: i}, () => h('player')));
+    for (const [name, off] of [['eye', 1], ['small', 2], ['cock', 3]]) {
+      const d = E.derivedRoad(b, off).length - E.derivedRoad(a, off).length;
+      if (d !== 0 && d !== 1) out.fail.push(name + ' jumped ' + d + ' marks on one hand');
+      if (i >= 4 && d !== 1) out.fail.push(name + ' missed a hand inside the streak');
+    }
+  }
+  // 시작 칸 전에는 마크가 없다 (한 열만 있는 동안)
+  out.checked++;
+  const oneCol = [h('player'), h('player'), h('player'), h('player'), h('player'), h('player')];
+  if (E.derivedRoad(oneCol, 1).length || E.derivedRoad(oneCol, 2).length || E.derivedRoad(oneCol, 3).length) {
+    out.fail.push('derived road drew before its start cell');
+  }
+
+  // ── NEW: 보너스 배당은 낮은 값 위주 (×2·×3 > 절반, ×8 은 드물게)
+  const dist = {};
+  let sample = 0;
+  for (let i = 0; i < 400; i++) {
+    for (const c of E.createBonusCards(E.MODES.sakura.bonus)) {
+      dist[c.multiplier] = (dist[c.multiplier] || 0) + 1;
+      sample++;
+    }
+  }
+  out.checked++;
+  if (!(dist[2] + dist[3] > sample * 0.5)) out.fail.push('×2/×3 share ' + JSON.stringify(dist));
+  if (!(dist[8] < sample * 0.15)) out.fail.push('×8 too common ' + JSON.stringify(dist));
+  if (dist[8] === 0) out.fail.push('×8 never appears');
+  const pick = E.pickMultiplier([2, 3, 4, 5, 8], () => 0.999);
+  out.checked++;
+  if (pick !== 8) out.fail.push('pickMultiplier tail ' + pick);
   const emptyRoad = E.derivedRoads([]);
   out.checked++;
   if (emptyRoad.eye.length || emptyRoad.small.length || emptyRoad.cock.length) out.fail.push('empty derived roads');
@@ -482,9 +532,9 @@ def run_desktop(browser):
     check("chips are round", chip_shape["radius"].startswith("50%") and abs(chip_shape["w"] - chip_shape["h"]) <= 1, str(chip_shape))
     check("chip edge stripes", "repeating-conic-gradient" in chip_shape["stripe"], chip_shape["stripe"][:40])
     check("each chip has its own colour", chip_shape["tones"] == 10, str(chip_shape["tones"]))
-    check("table limit label 10억", "10억" in page.inner_text("#statusLimit"), page.inner_text("#statusLimit"))
+    check("table limit label is unlimited", "무제한" in page.inner_text("#statusLimit"), page.inner_text("#statusLimit"))
 
-    # 1억 칩으로 여러 번 베팅 (테이블 한도 10억)
+    # 베팅 금액 제한 없음 — 잔고 안에서는 얼마든지 (1억 칩으로 계속)
     page.evaluate("window.__bac.state.balance = 3000000000; window.__bac.renderAll()")
     page.click('#chipRow .chip[data-chip="100000000"]')
     check("100M chip selected", page.evaluate("window.__bac.state.chip") == 100000000)
@@ -500,9 +550,9 @@ def run_desktop(browser):
     check("bet badge is a chip and reads 200M",
           "tone-100000000" in badge["cls"] and badge["round"].startswith("50%") and badge["txt"] == "200M", str(badge))
     check("bet badge text fits inside the chip", badge["ink"] <= badge["inner"], str(badge))
-    for _ in range(9):
+    for _ in range(8):
         page.click('[data-spot="player"]')
-    check("stake stops at the 10억 table limit", page.evaluate("window.__bac.state.bets.player") == 1000000000,
+    check("1억 chips stack to ₩10억", page.evaluate("window.__bac.state.bets.player") == 1000000000,
           str(page.evaluate("window.__bac.state.bets.player")))
     big_badge = page.evaluate("""() => { const b = document.querySelector('.bet-chip[data-betchip="player"]');
         const i = b.querySelector('i');
@@ -511,7 +561,19 @@ def run_desktop(browser):
     check("1B betting chip reads 1B", big_badge["txt"] == "1B", str(big_badge))
     check("1B betting chip text fits", big_badge["ink"] <= big_badge["inner"], str(big_badge))
     page.click('[data-spot="player"]')
-    check("over-limit bet rejected", page.evaluate("window.__bac.state.bets.player") == 1000000000)
+    check("bets are no longer capped at 10억", page.evaluate("window.__bac.state.bets.player") == 1100000000,
+          str(page.evaluate("window.__bac.state.bets.player")))
+    over_badge = page.evaluate("() => document.querySelector('.bet-chip[data-betchip=\"player\"]').textContent.trim()")
+    check("over-1B stake still reads in B", over_badge == "1.1B", over_badge)
+    for _ in range(19):
+        page.click('[data-spot="player"]')
+    check("bets may use the whole balance",
+          page.evaluate("window.__bac.state.bets.player") == 3000000000 and
+          page.evaluate("window.__bac.state.balance") == 0,
+          str(page.evaluate("window.__bac.state.bets.player")) + " / " + str(page.evaluate("window.__bac.state.balance")))
+    page.click('[data-spot="player"]')
+    check("a bet is only limited by the balance", page.evaluate("window.__bac.state.bets.player") == 3000000000,
+          str(page.evaluate("window.__bac.state.bets.player")))
     tclick(page, "#clearBtn")
     page.click('#chipRow .chip[data-chip="10000"]')
     check("clear refunds 1억 chips", page.evaluate("window.__bac.state.balance") == 3000000000,
@@ -954,6 +1016,125 @@ def run_desktop(browser):
     dots = page.eval_on_selector_all(".mr-dot", "e=>e.length")
     check("derived roads drawn", cols >= 3 and dots >= 1, f"{cols} columns / {dots} dots")
 
+    # ── NEW: 중국점이 연승 중에도 매 판 1개씩 늘고, 폭을 넘으면 최신 열로 밀린다
+    growth = page.evaluate("""() => {
+      const E = window.BaccaratEngine;
+      const s = window.__bac.state;
+      const saved = s.history.slice();
+      const mk = (ws) => ws.map((w, i) => ({winner: w, p: 7, b: 5, pp: false, bp: false, mult: 1, ts: Date.now() + i}));
+      const seq = (ws) => { s.history = mk(ws); window.__bac.renderAll(); };
+      const counts = () => ['.eye', '.small', '.cock'].map((k) => document.querySelectorAll(k + ' .mr-dot').length);
+      const base = ['player', 'player', 'banker', 'banker', 'banker', 'player', 'player', 'player', 'banker', 'banker'];
+      seq(base);
+      const before = counts();
+      seq(base.concat(['banker']));            // 같은 쪽(B) 연승 한 판 더
+      const after = counts();
+      seq(base.concat(['banker', 'banker']));
+      const after2 = counts();
+      // 엔진 마크와 화면 점이 정확히 같은지 (이 폭이면 전부 보인다)
+      const exact = [1, 2, 3].map((off, i) => E.derivedRoad(s.history, off).length === counts()[i]);
+      const engineKinds = [1, 2, 3].map((off) => {
+        const m = E.derivedRoad(s.history, off);
+        return m.length ? m[m.length - 1].kind : null;
+      });
+      const shownKinds = ['.eye', '.small', '.cock'].map((k, i) => {
+        const marks = E.derivedRoad(s.history, i + 1);
+        if (!marks.length) return null;
+        const box = document.querySelector(k + ' .mr-grid');
+        const cols = getComputedStyle(box).gridTemplateColumns.split(' ').filter(Boolean).length;
+        const maxC = marks.reduce((m, x) => Math.max(m, x.c), 0);
+        const off = Math.max(0, maxC - (cols - 1));
+        const last = marks[marks.length - 1];
+        const cell = [...box.querySelectorAll('.mr-dot')].find((d) =>
+          Number(d.style.gridColumn) === (last.c - off + 1) && Number(d.style.gridRow) === (last.r + 1));
+        return cell ? (cell.classList.contains('r') ? 'r' : 'b') : null;
+      });
+      s.history = saved;
+      window.__bac.renderAll();
+      return {before, after, after2, exact, engineKinds, shownKinds, engineLen: [1,2,3].map((off) => E.derivedRoad(mk(base.concat(['banker','banker'])), off).length)};
+    }""")
+    check("a streak hand adds one china mark to every road",
+          [growth["after"][i] - growth["before"][i] for i in range(3)] == [1, 1, 1],
+          f"{growth['before']} -> {growth['after']}")
+    check("the next streak hand adds one more",
+          [growth["after2"][i] - growth["after"][i] for i in range(3)] == [1, 1, 1],
+          f"{growth['after']} -> {growth['after2']}")
+    check("the drawn china marks equal the engine marks",
+          growth["exact"] == [True, True, True] and growth["after2"] == growth["engineLen"],
+          f"{growth['after2']} vs {growth['engineLen']}")
+    check("the last china mark on screen matches the engine colour",
+          growth["shownKinds"] == growth["engineKinds"], f"{growth['shownKinds']} vs {growth['engineKinds']}")
+
+    # ── NEW: 출목표 폭을 넘으면 최신 열로 밀려서 보인다 (16~20열)
+    scrolled = page.evaluate("""() => {
+      const E = window.BaccaratEngine;
+      const s = window.__bac.state;
+      const saved = s.history.slice();
+      const ws = [];
+      for (let i = 0; i < 16; i++) {
+        ws.push('player'); if (i % 3 === 0) ws.push('player');
+        ws.push('banker'); if (i % 4 === 0) ws.push('banker');
+      }
+      s.history = ws.map((w, i) => ({winner: w, p: 7, b: 5, pp: false, bp: false, mult: 1, ts: Date.now() + i}));
+      window.__bac.renderAll();
+      const out = ['.eye', '.small', '.cock'].map((k) => {
+        const box = document.querySelector(k + ' .mr-grid');
+        const cols = getComputedStyle(box).gridTemplateColumns.split(' ').filter(Boolean).length;
+        const cells = [...box.querySelectorAll('.mr-dot')];
+        const marks = E.derivedRoad(s.history, k === '.eye' ? 1 : k === '.small' ? 2 : 3);
+        const maxC = marks.reduce((m, x) => Math.max(m, x.c), 0);
+        const off = Math.max(0, maxC - (cols - 1));
+        const want = marks.filter((m) => m.c >= off).length;
+        const rightMost = cells.reduce((m, c) => Math.max(m, Number(c.style.gridColumn) - 1), -1);
+        const rect = box.getBoundingClientRect();
+        return {cols, cells: cells.length, want, rightMost, maxC, off,
+                inBox: rect.right <= window.innerWidth + .5 && rect.left >= 0,
+                cellW: rect.width / cols};
+      });
+      const big = document.querySelector('.bigroad');
+      const bigCell = big.getBoundingClientRect().width / getComputedStyle(big).gridTemplateColumns.split(' ').filter(Boolean).length;
+      s.history = saved;
+      window.__bac.renderAll();
+      return {out, bigCell};
+    }""")
+    check("china roads show 16–20+ columns on mobile",
+          all(r["cols"] >= 16 for r in scrolled["out"]), str([r["cols"] for r in scrolled["out"]]))
+    check("a full china road keeps only the newest columns, ending at the right edge",
+          all(r["cells"] == r["want"] and r["rightMost"] == min(r["maxC"], r["cols"] - 1)
+              and (r["maxC"] < r["cols"] - 1 or r["off"] > 0)
+              for r in scrolled["out"]), str(scrolled["out"]))
+    check("china cells are about half a big-road cell",
+          all(scrolled["bigCell"] * 0.25 <= r["cellW"] <= scrolled["bigCell"] * 0.6
+              for r in scrolled["out"]),
+          f"big {scrolled['bigCell']:.1f} / china {[round(r['cellW'], 1) for r in scrolled['out']]}")
+    check("china roads stay inside the screen", all(r["inBox"] for r in scrolled["out"]), str(scrolled["out"]))
+
+    # ── NEW: 연승 중 P/B 예측 → 새 깜빡이 칸이 중국점 1·2·3군에 동시에 나타난다
+    streak_prev = page.evaluate("""() => {
+      const E = window.BaccaratEngine;
+      const s = window.__bac.state;
+      const saved = s.history.slice();
+      const base = ['player', 'player', 'banker', 'banker', 'banker', 'player', 'player', 'player', 'banker', 'banker'];
+      s.history = base.map((w, i) => ({winner: w, p: 7, b: 5, pp: false, bp: false, mult: 1, ts: Date.now() + i}));
+      window.__bac.renderAll();
+      window.__bac.setPreview('banker');
+      const shown = E.derivedRoads(s.history.concat([{winner: 'banker'}]));
+      const prev = E.derivedRoads(s.history);
+      const grew = ['eye', 'small', 'cock'].filter((k) => shown[k].length > prev[k].length).length;
+      const cells = [...document.querySelectorAll('.mr-cell.is-preview')].map((c) => ({
+        road: c.closest('.mr') ? c.closest('.mr').className : '',
+        col: Number(c.style.gridColumn), row: Number(c.style.gridRow),
+        blink: getComputedStyle(c, '::after').animationName !== 'none'
+      }));
+      window.__bac.setPreview(null);
+      s.history = saved;
+      window.__bac.renderAll();
+      return {grew, cells};
+    }""")
+    check("a prediction inside a streak blinks one new china cell per road",
+          streak_prev["grew"] == 3 and len(streak_prev["cells"]) == 3 and all(c["blink"] for c in streak_prev["cells"]),
+          str(streak_prev))
+
     # ── Ask the road: P/B 예측 버튼 → 다음 칸 깜빡이 미리보기
     page.wait_for_function("window.__bac.state.phase === 'betting'", timeout=20000)
     tclick(page, "#predP")
@@ -963,9 +1144,28 @@ def run_desktop(browser):
     check("P preview cell is player", page.eval_on_selector(".br-cell.is-preview", "e=>e.classList.contains('p')"))
     check("P preview blinks (animation)", page.eval_on_selector(".br-cell.is-preview",
           "e=>getComputedStyle(e, '::after').animationName !== 'none'"))
-    check("P preview marks the derived roads", page.eval_on_selector_all(".mr-cell.is-preview", "e=>e.length") >= 1,
-          str(page.eval_on_selector_all(".mr-cell.is-preview", "e=>e.length")))
+    pv_want = page.evaluate("""() => {
+      const s = window.__bac.state;
+      const shown = BaccaratEngine.derivedRoads(s.history.concat([{winner: 'player'}]));
+      const base = BaccaratEngine.derivedRoads(s.history);
+      return ['eye', 'small', 'cock'].filter((k) => shown[k].length > base[k].length).length;
+    }""")
+    check("P preview marks exactly the china roads that gain a mark",
+          page.eval_on_selector_all(".mr-cell.is-preview", "e=>e.length") == pv_want and pv_want >= 1,
+          f"{page.eval_on_selector_all('.mr-cell.is-preview', 'e=>e.length')} vs engine {pv_want}")
     check("P button shows pressed state", page.eval_on_selector("#predP", "e=>e.classList.contains('is-on') && e.getAttribute('aria-pressed') === 'true'"))
+    pips = page.evaluate("""() => {
+      const E = window.BaccaratEngine; const s = window.__bac.state;
+      const kindOf = (side) => {
+        const dr = E.derivedRoads(s.history.concat([{winner: side}]));
+        return ['eye', 'small', 'cock'].map((k) => (dr[k].length ? dr[k][dr[k].length - 1].kind : null));
+      };
+      const read = (sel) => [...document.querySelectorAll(sel + ' i')].map((i) =>
+        i.classList.contains('k-r') ? 'r' : i.classList.contains('k-b') ? 'b' : null);
+      return {p: read('#predP'), b: read('#predB'), wantP: kindOf('player'), wantB: kindOf('banker')};
+    }""")
+    check("ask-the-road pips follow the china roads' last mark",
+          pips["p"] == pips["wantP"] and pips["b"] == pips["wantB"], str(pips))
     tclick(page, "#predB")
     page.wait_for_timeout(150)
     check("B preview switches to banker", page.eval_on_selector(".br-cell.is-preview", "e=>e.classList.contains('b')"),
@@ -1391,6 +1591,52 @@ def run_mobile(browser):
       return n;
     }""")
     check("the preview also marks the china roads on screen", mr >= 1, str(mr))
+
+    # ── NEW: 모바일 중국점 밀도(16~20열) · 최신 열로 밀림 · 화면 안
+    mroad = page.evaluate("""() => {
+      const E = window.BaccaratEngine;
+      const s = window.__bac.state;
+      const saved = s.history.slice();
+      window.__bac.setPreview(null);
+      const ws = [];
+      for (let i = 0; i < 16; i++) {
+        ws.push('player'); if (i % 3 === 0) ws.push('player');
+        ws.push('banker'); if (i % 4 === 0) ws.push('banker');
+      }
+      s.history = ws.map((w, i) => ({winner: w, p: 7, b: 5, pp: false, bp: false, mult: 1, ts: Date.now() + i}));
+      window.__bac.renderAll();
+      const rows = ['.eye', '.small', '.cock'].map((k, i) => {
+        const box = document.querySelector(k + ' .mr-grid');
+        const cols = getComputedStyle(box).gridTemplateColumns.split(' ').filter(Boolean).length;
+        const marks = E.derivedRoad(s.history, i + 1);
+        const maxC = marks.reduce((m, x) => Math.max(m, x.c), 0);
+        const off = Math.max(0, maxC - (cols - 1));
+        const want = marks.filter((m) => m.c >= off).length;
+        const cells = [...box.querySelectorAll('.mr-dot')];
+        const rect = box.getBoundingClientRect();
+        const rightMost = cells.reduce((m, c) => Math.max(m, Number(c.style.gridColumn) - 1), -1);
+        return {cols, shown: cells.length, want, off, maxC, rightMost, cellW: rect.width / cols, cellH: rect.height / 6,
+                inView: rect.left >= 0 && rect.right <= window.innerWidth + .5};
+      });
+      const big = document.querySelector('.bigroad').getBoundingClientRect();
+      const bigCols = getComputedStyle(document.querySelector('.bigroad')).gridTemplateColumns.split(' ').filter(Boolean).length;
+      s.history = saved;
+      window.__bac.renderAll();
+      return {rows, bigCell: big.width / bigCols};
+    }""")
+    check("mobile china roads show 16–20+ columns",
+          all(16 <= r["cols"] <= 22 for r in mroad["rows"]), str([r["cols"] for r in mroad["rows"]]))
+    check("mobile china roads scroll to the newest column",
+          all(r["shown"] == r["want"] for r in mroad["rows"]), str(mroad["rows"]))
+    overflowing = [r for r in mroad["rows"] if r["maxC"] > r["cols"] - 1]
+    check("mobile china roads clamp the newest column to the right edge",
+          bool(overflowing) and all(r["off"] > 0 and r["rightMost"] == r["cols"] - 1 for r in overflowing),
+          str([(r["cols"], r["maxC"], r["off"], r["rightMost"]) for r in mroad["rows"]]))
+    check("mobile china cells are about half a big-road cell",
+          all(mroad["bigCell"] * 0.28 <= r["cellW"] <= mroad["bigCell"] * 0.6 and
+              mroad["bigCell"] * 0.35 <= r["cellH"] <= mroad["bigCell"] * 0.65 for r in mroad["rows"]),
+          f"big {mroad['bigCell']:.1f} / china {[(round(r['cellW'], 1), round(r['cellH'], 1)) for r in mroad['rows']]}")
+    check("mobile china roads sit inside the screen", all(r["inView"] for r in mroad["rows"]), str(mroad["rows"]))
     boxb = page.query_selector("#predB").bounding_box()
     page.touchscreen.tap(boxb["x"] + boxb["width"] / 2, boxb["y"] + boxb["height"] / 2)
     page.wait_for_timeout(400)
@@ -1519,10 +1765,13 @@ def run_mobile(browser):
 
 def main():
     srv = serve()
+    only = os.environ.get("BAC_ONLY", "").strip()
     with sync_playwright() as p:
         browser = p.chromium.launch(executable_path=BIN, args=["--no-sandbox"])
-        run_desktop(browser)
-        run_mobile(browser)
+        if only != "mobile":
+            run_desktop(browser)
+        if only != "desktop":
+            run_mobile(browser)
         browser.close()
     srv.shutdown()
 

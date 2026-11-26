@@ -34,7 +34,6 @@
       short: '스피드',
       icon: '🚀',
       fee: 0,
-      limit: 1000000000,
       payouts: { player: 1, banker: 0.95, tie: 8, playerPair: 11, bankerPair: 11, playerBonus: 30, bankerBonus: 30, perfectPair: 25, eitherPair: 5 },
       perfectDouble: 200,
       bonusTotals: BONUS_TOTALS,
@@ -51,7 +50,6 @@
       short: '벚꽃',
       icon: '🌸',
       fee: 0,
-      limit: 1000000000,
       payouts: { player: 1, banker: 0.95, tie: 8, playerPair: 11, bankerPair: 11, playerBonus: 30, bankerBonus: 30, perfectPair: 25, eitherPair: 5 },
       perfectDouble: 200,
       bonusTotals: BONUS_TOTALS,
@@ -68,7 +66,6 @@
       short: '눈꽃',
       icon: '❄️',
       fee: 0,
-      limit: 1000000000,
       payouts: { player: 1, banker: 0.95, tie: 8, playerPair: 11, bankerPair: 11, playerBonus: 30, bankerBonus: 30, perfectPair: 25, eitherPair: 5 },
       perfectDouble: 200,
       bonusTotals: BONUS_TOTALS,
@@ -237,7 +234,26 @@
     return playHand(() => shoe.draw());
   }
 
-  /** Create 1..N bonus cards with random multipliers. */
+  /**
+   * 배당 가중치 — 낮은 배당 위주로, ×8 같은 고배당은 가끔만 나온다.
+   * (×2 약 35% · ×3 약 29% · ×4 약 18% · ×5 약 12% · ×8 약 6%)
+   */
+  const MULTIPLIER_WEIGHTS = { 2: 6, 3: 5, 4: 3, 5: 2, 8: 1 };
+
+  /** 목록에서 가중치대로 배당 하나를 뽑는다. */
+  function pickMultiplier(list, rng) {
+    const values = Array.from(new Set(list && list.length ? list : [2, 3, 4, 5, 8]));
+    const pool = values.map((m) => ({ m, w: MULTIPLIER_WEIGHTS[m] || 1 }));
+    const total = pool.reduce((a, b) => a + b.w, 0);
+    let roll = (rng || Math.random)() * total;
+    for (const p of pool) {
+      roll -= p.w;
+      if (roll < 0) return p.m;
+    }
+    return pool[pool.length - 1].m;
+  }
+
+  /** Create 1..N bonus cards with weighted multipliers. */
   function createBonusCards(config, rng) {
     if (!config) return [];
     const rand = rng || Math.random;
@@ -252,7 +268,7 @@
       rank: c.rank,
       suit: c.suit,
       id: c.id,
-      multiplier: config.multipliers[Math.floor(rand() * config.multipliers.length)]
+      multiplier: pickMultiplier(config.multipliers, rand)
     }));
   }
 
@@ -461,27 +477,85 @@
   }
 
   /**
-   * Derived roads (중국점 1·2·3군). Each compares a big-road column with the
-   * column `offset` places back: same length → blue, different → red.
-   * Blue marks continue downward, red marks start a new column.
+   * Big-road path, hand by hand (ties skipped): every non-tie hand owns one
+   * grid cell, including the dragon-tail cell that hangs off a full 6-row
+   * column. Returns [{ c, r, winner }] with 0-indexed columns and rows.
+   */
+  function bigRoadPath(history) {
+    const path = [];
+    let last = null;
+    for (const h of history || []) {
+      if (!h || (h.winner !== 'player' && h.winner !== 'banker')) continue;
+      let pos;
+      if (!last) pos = { c: 0, r: 0 };
+      else if (h.winner === last.winner) {
+        pos = last.r < 5 ? { c: last.c, r: last.r + 1 } : { c: last.c + 1, r: last.r };
+      } else {
+        pos = { c: last.c + 1, r: 0 };
+      }
+      last = { c: pos.c, r: pos.r, winner: h.winner };
+      path.push(last);
+    }
+    return path;
+  }
+
+  /** First big-road cell that opens each derived road (1군 · 2군 · 3군). */
+  const DERIVED_START = {
+    1: (c, r) => (c === 1 && r >= 1) || c >= 2,
+    2: (c, r) => (c === 2 && r >= 1) || c >= 3,
+    3: (c, r) => (c === 3 && r >= 1) || c >= 4
+  };
+
+  /**
+   * Derived roads (중국점 1·2·3군) — Evolution / Macau style, one mark per HAND.
+   * Every non-tie hand after the road's start cell adds exactly one mark, also
+   * while the same side keeps winning straight down a big-road column.
+   *  · 새 열 첫 칸(r = 0): 기준 열 c-1 과 c-1-offset 의 길이가 같으면 빨강, 다르면 파랑
+   *  · 열 아래로(r >= 1): 비교 열 c-offset 의 길이 L 이 r 과 같으면 파랑, 아니면 빨강
+   *  · 같은 색은 아래로, 6행 바닥·이미 찬 칸이면 오른쪽 용꼬리, 색이 바뀌면 새 열
    */
   function derivedRoad(history, offset) {
-    const cols = bigRoadColumns(history);
+    const path = bigRoadPath(history);
+    const colLen = [];
+    for (const cell of path) colLen[cell.c] = (colLen[cell.c] || 0) + 1;
+    const started = DERIVED_START[offset] || DERIVED_START[1];
+
     const marks = [];
+    const used = new Set();
     let col = 0;
     let row = 0;
     let prevKind = null;
-    for (let i = offset; i < cols.length; i++) {
-      const same = cols[i].len === cols[i - offset].len;
-      const kind = same ? 'b' : 'r';
-      if (marks.length === 0) {
+
+    for (const cell of path) {
+      const c = cell.c;
+      const r = cell.r;
+      if (c - offset < 0 || !started(c, r)) continue;
+
+      let kind;
+      if (r === 0) {
+        kind = (colLen[c - 1] || 0) === (colLen[c - 1 - offset] || 0) ? 'r' : 'b';
+      } else {
+        const L = colLen[c - offset] || 0;
+        kind = L === r ? 'b' : 'r';
+      }
+
+      if (!marks.length) {
         col = 0; row = 0;
       } else if (kind === prevKind) {
-        row += 1;
-        if (row > 5) { col += 1; row = 0; }
+        if (row < 5 && !used.has(col + ':' + (row + 1))) {
+          row += 1;
+        } else {
+          let nc = col + 1;
+          while (used.has(nc + ':' + row)) nc += 1;
+          col = nc;
+        }
       } else {
-        col += 1; row = 0;
+        let nc = col + 1;
+        row = 0;
+        while (used.has(nc + ':' + row)) nc += 1;
+        col = nc;
       }
+      used.add(col + ':' + row);
       marks.push({ c: col, r: row, kind });
       prevKind = kind;
     }
@@ -500,7 +574,7 @@
   global.BaccaratEngine = {
     RANKS, SUITS, SUIT_SYMBOL, VALUES, MODES, BONUS_TOTALS,
     buildDeck, shuffle, cardValue, handTotal, pairKind, Shoe,
-    playHand, dealHand, createBonusCards, multiplierFor, settleRound,
-    bigRoadColumns, derivedRoad, derivedRoads
+    playHand, dealHand, createBonusCards, pickMultiplier, multiplierFor, settleRound,
+    bigRoadColumns, bigRoadPath, derivedRoad, derivedRoads
   };
 })(typeof window !== 'undefined' ? window : globalThis);

@@ -1017,6 +1017,16 @@ body[data-mode="snow"] .bonus-rail { border-color: rgba(169, 220, 242, .32); }
 .pred.b i.win { border: 1.6px solid #E1222D; }
 .pred.b i.lose { background: #3D7BFF; }
 .pred.b i.tie { width: 10px; height: 0; border-radius: 2px; border-top: 2px solid #3D7BFF; transform: rotate(-38deg); }
+/* 예고 점 3개 = 중국점 1·2·3군의 마지막 마크 (1군 빈 링 · 2군 점 · 3군 빗금 / r 빨강 · b 파랑) */
+.pred i:nth-child(1) { border: 1.5px solid #8A93A3; background: transparent; }
+.pred i:nth-child(1).k-r { border-color: #E1222D; }
+.pred i:nth-child(1).k-b { border-color: #3D7BFF; }
+.pred i:nth-child(2) { background: #8A93A3; }
+.pred i:nth-child(2).k-r { background: #E1222D; }
+.pred i:nth-child(2).k-b { background: #3D7BFF; }
+.pred i:nth-child(3) { width: 10px; height: 0; border-radius: 2px; border-top: 2px solid #8A93A3; transform: rotate(-38deg); background: transparent; }
+.pred i:nth-child(3).k-r { border-top-color: #E1222D; }
+.pred i:nth-child(3).k-b { border-top-color: #3D7BFF; }
 .road-count { display: none; }
 
 /* ═══════════════════ 3 · BETTING MAT ═══════════════════ */
