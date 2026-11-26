@@ -562,6 +562,12 @@ def run_desktop(browser):
     page.mouse.move(dst["x"] + dst["width"] / 2, dst["y"] + dst["height"] / 2, steps=8)
     page.wait_for_timeout(120)
     check("drag ghost visible", page.eval_on_selector_all(".drag-chip", "e=>e.length") == 1)
+    ghost = page.evaluate("""() => { const g = document.querySelector('.drag-chip'); if (!g) return null;
+        const i = g.querySelector('i');
+        return {txt: g.textContent.trim(), fs: i ? getComputedStyle(i).fontSize : '',
+                ink: i ? i.offsetWidth : 0, inner: Math.round(g.clientWidth * 0.6 * 10) / 10}; }""")
+    check("drag ghost labels the chip in K / M / B and fits",
+          bool(ghost) and ghost["txt"] == "50K" and ghost["ink"] <= ghost["inner"], str(ghost))
     page.mouse.up()
     page.wait_for_timeout(250)
     moved = page.evaluate("window.__bac.state.bets")
