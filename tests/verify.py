@@ -389,15 +389,67 @@ def run_desktop(browser):
     zones = page.evaluate("""() => Array.from(document.querySelectorAll('[data-spot]')).map(z => z.dataset.spot)""")
     expect_zones = ["player", "banker", "tie", "playerPair", "bankerPair", "playerBonus", "bankerBonus", "perfectPair", "eitherPair"]
     check("9 betting zones", sorted(zones) == sorted(expect_zones), str(zones))
-    check("player/banker/tie payouts", page.inner_text("#payPlayer") == "1:1" and page.inner_text("#payTie") == "8:1"
-          and page.inner_text("#payBanker") == "0.95:1",
-          f"{page.inner_text('#payPlayer')} {page.inner_text('#payTie')} {page.inner_text('#payBanker')}")
+    pays = page.evaluate("() => ({p: document.getElementById('payPlayer').textContent.trim(),"
+                                     " b: document.getElementById('payBanker').textContent.trim(),"
+                                     " t: document.getElementById('payTie').textContent.trim()})")
+    check("player/banker/tie payouts", pays["p"] == "1:1" and pays["t"] == "8:1" and pays["b"] == "0.95:1", str(pays))
+    check("mat hides player/banker payout like the video",
+          page.eval_on_selector("#payPlayer", "e=>getComputedStyle(e).display === 'none'")
+          and page.eval_on_selector("#payBanker", "e=>getComputedStyle(e).display === 'none'"))
+    tie_line = page.evaluate("""() => { const n = document.querySelector('.mz-tie .mz-name').getBoundingClientRect();
+        const p = document.querySelector('.mz-tie .mz-pay').getBoundingClientRect();
+        return {sameRow: n.top < p.bottom && p.top < n.bottom, gap: Math.round(p.left - n.right),
+                bottom: Math.round(Math.abs(n.bottom - p.bottom))}; }""")
+    check("tie name and payout on one line",
+          tie_line["sameRow"] and tie_line["gap"] >= -1 and tie_line["bottom"] <= 4, str(tie_line))
     check("bonus side-bet payouts", page.inner_text("#payPB") == "1~30:1" and page.inner_text("#payBB") == "1~30:1",
           f"{page.inner_text('#payPB')} / {page.inner_text('#payBB')}")
     check("perfect pair payout label", "25:1" in page.inner_text("#payPerfect") and "200:1" in page.inner_text("#payPerfect"),
           page.inner_text("#payPerfect"))
     check("either pair payout", page.inner_text("#payEither") == "5:1", page.inner_text("#payEither"))
     check("tie zone labelled 무", "무" in page.inner_text('[data-spot="tie"]'), page.inner_text('[data-spot="tie"]'))
+
+    # ── NEW: 영상(Stake Korean Speed Baccarat) 화면 맞춤 — 고딕 산세리프 통일
+    typo = page.evaluate("""() => ['body', '.mz-player .mz-name', '.mz-tie .mz-name', '.mz-tie .mz-pay',
+        '.mz-side .mz-name', '.mz-side .mz-pay', '.statusbar', '.rc-num', '.result-title', '.brand-text b',
+        '.bigroad', '.chip']
+      .map(s => { const e = document.querySelector(s); return [s, e ? getComputedStyle(e).fontFamily : null]; })""")
+    def _sans(v):
+        low = (v or "").lower()
+        return bool(low) and "serif" not in low.replace("sans-serif", "")
+    check("every UI family is a clean gothic sans", all(_sans(v) for _, v in typo),
+          str([t for t in typo if not _sans(t[1])]))
+    check("felt watermark keeps a serif face",
+          "serif" in page.eval_on_selector(".felt-label", "e=>getComputedStyle(e).fontFamily").lower(),
+          page.eval_on_selector(".felt-label", "e=>getComputedStyle(e).fontFamily"))
+
+    # ── NEW: 점수 배지 — 0은 반투명 회색, 점수는 선명한 파랑/빨강 각진 라운드
+    sb = page.evaluate("""() => { const p = document.getElementById('playerTotal');
+      const off = getComputedStyle(p).backgroundColor;
+      p.classList.add('is-scored');
+      const on = getComputedStyle(p).backgroundImage; p.classList.remove('is-scored');
+      const b = document.getElementById('bankerTotal');
+      b.classList.add('is-scored'); const onB = getComputedStyle(b).backgroundImage; b.classList.remove('is-scored');
+      return {off, on, onB, radius: getComputedStyle(p).borderRadius};
+    }""")
+    check("empty score badge is translucent grey", sb["off"] == "rgba(90, 90, 90, 0.6)", sb["off"])
+    check("score badge turns bright blue / red",
+          "linear-gradient" in sb["on"] and "linear-gradient" in sb["onB"] and sb["on"] != sb["onB"],
+          sb["on"][:70] + " | " + sb["onB"][:70])
+    check("score badge corners are 6px rounded squares", sb["radius"].startswith("6px"), sb["radius"])
+
+    # ── NEW: 사이드 베팅 2줄 중앙 정렬 (이름 / 배당)
+    side = page.evaluate("""() => ['playerPair', 'playerBonus', 'bankerBonus', 'bankerPair', 'perfectPair', 'eitherPair']
+      .map(k => {
+        const z = document.querySelector(`[data-spot="${k}"]`);
+        const n = z.querySelector('.mz-name').getBoundingClientRect();
+        const p = z.querySelector('.mz-pay').getBoundingClientRect();
+        const zr = z.getBoundingClientRect();
+        const cx = (r) => r.left + r.width / 2, zc = zr.left + zr.width / 2;
+        return {k, nC: Math.round(cx(n) - zc), pC: Math.round(cx(p) - zc), twoLines: p.top >= n.bottom - 1};
+      })""")
+    check("side bets are two centred lines",
+          all(abs(s["nC"]) <= 2 and abs(s["pC"]) <= 2 and s["twoLines"] for s in side), str(side))
 
     # ── NEW: 10 circular casino chips (1천 ~ 1억)
     chips = page.evaluate("() => Array.from(document.querySelectorAll('#chipRow .chip')).map(c => Number(c.dataset.chip))")
@@ -980,17 +1032,26 @@ def run_desktop(browser):
     check("login restores balance", page.evaluate("window.__bac.state.balance") == 1001000000,
           str(page.evaluate("window.__bac.state.balance")))
 
-    # ── mode screenshots
+    # ── mode screenshots (배속 화면용 — 쪼기 끄고 한 라운드씩)
+    page.click("#infoBtn")
+    page.wait_for_timeout(220)
+    if page.eval_on_selector("#optSqueeze", "e=>e.checked"):
+        page.click("#optSqueeze + .sw")
+        page.wait_for_timeout(150)
+    page.click("#modalClose")
+    page.wait_for_timeout(200)
     for mode in ["speed", "snow"]:
+        page.wait_for_function("window.__bac.state.phase === 'betting'", timeout=40000)
         page.click(f'.mode-btn[data-mode="{mode}"]')
-        page.wait_for_timeout(400)
+        page.wait_for_timeout(500)
         clear(page)
         page.click('#chipRow .chip[data-chip="50000"]')
         page.click('[data-spot="banker"]')
         deal_now(page)
         page.wait_for_function("window.__bac.state.phase === 'result'", timeout=25000)
-        page.wait_for_timeout(350)
-        page.screenshot(path=os.path.join(ROOT, f"preview-{mode}.png"))
+        # 결과 유지 시간이 짧은 스피드 테이블에서도 카드가 지워지기 전에 잡습니다
+        page.wait_for_timeout(150)
+        page.screenshot(path=os.path.join(ROOT, f"preview-{mode}.png"), animations="disabled")
         page.wait_for_function("window.__bac.state.phase === 'betting'", timeout=15000)
 
     page.click('.mode-btn[data-mode="sakura"]')

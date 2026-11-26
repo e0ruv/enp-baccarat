@@ -888,8 +888,9 @@
     if (el.playerTotal) el.playerTotal.innerHTML = '<i>0</i>';
     if (el.bankerTotal) el.bankerTotal.innerHTML = '<i>0</i>';
     if (el.feltStatus) el.feltStatus.textContent = 'PLACE YOUR BETS';
-    if (el.playerTotal) el.playerTotal.classList.remove('is-win');
-    if (el.bankerTotal) el.bankerTotal.classList.remove('is-win');
+    for (const b of [el.playerTotal, el.bankerTotal]) {
+      if (b) b.classList.remove('is-win', 'is-scored');
+    }
     if (el.handBadge) {
       el.handBadge.className = 'hand-badge';
       el.handBadge.textContent = '';
@@ -898,7 +899,12 @@
     el.squeezeHint.classList.remove('on');
     el.result.classList.remove('on');
     clearTimeout(resultTimer);
-    squeezeWait = null;
+    // 테이블을 비울 때 진행 중인 쪼기 대기가 남아 있으면 풀어줍니다 (멈춤 방지)
+    if (squeezeWait) {
+      const fn = squeezeWait.resolve;
+      squeezeWait = null;
+      fn();
+    }
     if (el.liveMult) el.liveMult.innerHTML = '';
     liveSig = '';
   }
@@ -939,8 +945,11 @@
       const cards = revealedCards(side);
       const badge = side === 'player' ? el.playerTotal : el.bankerTotal;
       if (!badge) continue;
+      const total = cards.length ? E.handTotal(cards) : 0;
       if (!cards.length) badge.innerHTML = '<i>0</i>';
-      else badge.textContent = E.handTotal(cards);
+      else badge.textContent = total;
+      // 0 = 반투명 회색, 점수가 나면 선명한 파랑/빨강 (영상과 동일)
+      badge.classList.toggle('is-scored', cards.length > 0 && total > 0);
     }
     renderMiniCards();
   }
@@ -962,11 +971,15 @@
     if (!node || node.classList.contains('up')) return;
     node.classList.remove('peekable');
     node.classList.add('up');
-    window.Sound && Sound.flip();
-    updateTotals();
-    if (node._card) sparkIfHit(node, node._card);
-    updateLiveMults();
-    checkSqueezeWait();
+    try {
+      window.Sound && Sound.flip();
+      updateTotals();
+      if (node._card) sparkIfHit(node, node._card);
+      updateLiveMults();
+    } finally {
+      // 어떤 이유로 갱신이 실패해도 쪼기 대기는 반드시 풀립니다
+      checkSqueezeWait();
+    }
   }
 
   function checkSqueezeWait() {
@@ -986,7 +999,15 @@
       if (timeoutMs) {
         window.setTimeout(() => {
           if (!squeezeWait || squeezeWait.els !== nodes) return;
-          nodes.forEach((n) => { if (!n.classList.contains('up')) revealCard(n); });
+          nodes.forEach((n) => {
+            try { if (!n.classList.contains('up')) revealCard(n); } catch (err) { /* ignore */ }
+          });
+          // 카드 공개가 중간에 실패해도 라운드가 멈추지 않도록 대기를 확실히 풉니다
+          if (squeezeWait && squeezeWait.els === nodes) {
+            const fn = squeezeWait.resolve;
+            squeezeWait = null;
+            fn();
+          }
         }, timeoutMs);
       }
     });
@@ -1310,6 +1331,7 @@
       updateTotals();
       await waitAllUp(firstNodes, SQUEEZE_TIMEOUT);
       el.squeezeHint.classList.remove('on');
+      if (S.phase !== 'reveal') return; // 테이블이 정리되면 이 라운드는 중단
     }
 
     // third cards
@@ -1344,6 +1366,7 @@
       el.squeezeHint.classList.add('on');
       await waitAllUp(thirdNodes, SQUEEZE_TIMEOUT);
       el.squeezeHint.classList.remove('on');
+      if (S.phase !== 'reveal') return; // 테이블이 정리되면 이 라운드는 중단
     }
 
     // reveal everything (non-squeeze already up)

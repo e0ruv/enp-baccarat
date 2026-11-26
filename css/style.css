@@ -18,21 +18,21 @@
   --gold-2: #F6E3B4;
   --gold-line: rgba(217, 178, 95, .26);
 
-  --player: #1552C8;
-  --player-2: #0C3EA5;
-  --player-lip: #2E74F2;
-  --banker: #C2192B;
-  --banker-2: #9C1020;
-  --banker-lip: #F03A4C;
-  --tie: #0E7A3C;
-  --tie-2: #086029;
+  --player: #14449f;
+  --player-2: #0b2f70;
+  --player-lip: #2e6fd6;
+  --banker: #a91212;
+  --banker-2: #7c0a0a;
+  --banker-lip: #d81f27;
+  --tie: #0f6b2f;
+  --tie-2: #0a4c21;
   --gold-zone: #6A4B1E;
 
   --accent: #E88BA8;
   --glow: rgba(232, 139, 168, .34);
 
-  --felt-a: #2A2019;
-  --felt-b: #0E0B08;
+  --felt-a: #a2846a;
+  --felt-b: #6f5540;
 
   --r-xl: 14px;
   --r-lg: 10px;
@@ -41,10 +41,12 @@
   --safe-t: env(safe-area-inset-top, 0px);
   --safe-b: env(safe-area-inset-bottom, 0px);
 
-  --font: -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo", "Pretendard",
-          "Segoe UI", Roboto, "Helvetica Neue", "Malgun Gothic", sans-serif;
-  --serif: "Didot", "Bodoni 72", "Playfair Display", "Times New Roman", Georgia,
-           "Nanum Myeongjo", "Noto Serif KR", serif;
+  /* 깔끔한 고딕 산세리프 한 가지로 통일 — 영상(Evolution 실물 테이블)과 같은 톤 */
+  --font: "Pretendard", "Pretendard Variable", -apple-system, BlinkMacSystemFont,
+          "Apple SD Gothic Neo", "Noto Sans KR", Inter, "Segoe UI", Roboto,
+          "Helvetica Neue", "Malgun Gothic", sans-serif;
+  /* 테이블 바닥에 희미하게 인쇄된 PLAYER / BANKER 워터마크 전용 */
+  --serif: "Times New Roman", "Nanum Myeongjo", "Noto Serif KR", serif;
 
   --card-w: clamp(32px, 10.2vw, 48px);
   --br-rows: 6;
@@ -52,11 +54,11 @@
 
 body[data-mode="speed"] {
   --accent: #55D3EA; --glow: rgba(85, 211, 234, .32);
-  --felt-a: #1B232A; --felt-b: #070B0E;
+  --felt-a: #9b8a76; --felt-b: #64513f;
 }
 body[data-mode="snow"] {
   --accent: #A9DCF2; --glow: rgba(169, 220, 242, .32);
-  --felt-a: #1E2732; --felt-b: #070B10;
+  --felt-a: #a5988a; --felt-b: #6b5b4b;
 }
 
 html, body {
@@ -134,10 +136,10 @@ input { font-family: inherit; touch-action: manipulation; }
   border: 1px solid rgba(217, 178, 95, .5);
   box-shadow: inset 0 1px 0 rgba(255, 240, 200, .2);
 }
-.brand-mark b { font-family: var(--serif); font-size: 16px; color: var(--gold-2); }
+.brand-mark b { font-family: var(--font); font-size: 16px; color: var(--gold-2); }
 .brand-glyph { position: absolute; right: -4px; bottom: -4px; font-size: 10px; }
 .brand-text { display: none; flex-direction: column; line-height: 1; gap: 2px; }
-.brand-text b { font-family: var(--serif); font-size: 12px; letter-spacing: .14em; color: #F6E7C4; }
+.brand-text b { font-family: var(--font); font-size: 12px; letter-spacing: .14em; color: #F6E7C4; }
 .brand-text i { font-style: normal; font-size: 6px; letter-spacing: .3em; color: var(--muted-2); }
 
 .vm-badge {
@@ -197,7 +199,7 @@ input { font-family: inherit; touch-action: manipulation; }
 }
 .bp-cur { font-size: 9px; color: var(--gold); opacity: .85; }
 .bp-amount {
-  font-family: var(--serif); font-size: 12px; font-weight: 700;
+  font-family: var(--font); font-size: 12px; font-weight: 700;
   color: #FBEEC9; font-variant-numeric: tabular-nums; white-space: nowrap;
 }
 .bp-refill {
@@ -522,7 +524,7 @@ body[data-mode="speed"] .dp-tint { background: radial-gradient(72% 58% at 50% 16
   position: absolute; bottom: 6px; z-index: 7;
   width: 42px; height: 42px; border-radius: 9px;
   display: grid; place-items: center;
-  font-family: var(--serif); font-size: 23px; font-weight: 700;
+  font-family: var(--font); font-size: 23px; font-weight: 700;
   color: #fff; font-variant-numeric: tabular-nums;
   border: 1px solid rgba(255, 255, 255, .28);
   box-shadow: 0 4px 14px -6px #000, inset 0 1px 0 rgba(255, 255, 255, .3);
@@ -544,7 +546,7 @@ body[data-mode="speed"] .dp-tint { background: radial-gradient(72% 58% at 50% 16
   transform: translate(-50%, 0) scale(.4);
   width: 52px; height: 52px; border-radius: 50%;
   display: grid; place-items: center;
-  font-family: var(--serif); font-size: 25px; font-weight: 800;
+  font-family: var(--font); font-size: 25px; font-weight: 800;
   color: #23180A;
   background: radial-gradient(circle at 35% 30%, #FFF6DA, #E3BA68 62%, #A47F32);
   border: 1.5px solid rgba(255, 255, 255, .65);
@@ -569,6 +571,7 @@ body[data-mode="speed"] .dp-tint { background: radial-gradient(72% 58% at 50% 16
   animation: hbRing 1.5s ease-out infinite;
 }
 @keyframes hbRing { 0% { transform: scale(.82); opacity: .9; } 70%, 100% { transform: scale(1.22); opacity: 0; } }
+.hand-badge { border: 2.5px solid rgba(246, 222, 168, .95); }
 .hand-badge.p { background: radial-gradient(circle at 35% 30%, #D6EBFF, #2F6FD8 62%, #0B2E6E); color: #F4F9FF; border-color: rgba(190, 224, 255, .8); box-shadow: 0 0 28px rgba(70, 140, 255, .6), 0 6px 18px -8px #000; }
 .hand-badge.b { background: radial-gradient(circle at 35% 30%, #FFE0E3, #D22A3C 62%, #7C0A15); color: #FFF4F5; border-color: rgba(255, 200, 205, .8); box-shadow: 0 0 28px rgba(240, 60, 80, .6), 0 6px 18px -8px #000; }
 .hand-badge.t { background: radial-gradient(circle at 35% 30%, #D8FFE7, #159A4E 62%, #0A5C2C); color: #F2FFF7; border-color: rgba(180, 255, 210, .8); box-shadow: 0 0 28px rgba(40, 200, 120, .55), 0 6px 18px -8px #000; }
@@ -596,7 +599,7 @@ body[data-mode="speed"] .dp-tint { background: radial-gradient(72% 58% at 50% 16
 }
 .rc-num {
   position: relative; z-index: 2;
-  font-family: var(--serif); font-size: 23px; font-weight: 800; color: #FDF3D6;
+  font-family: var(--font); font-size: 23px; font-weight: 800; color: #FDF3D6;
   font-variant-numeric: tabular-nums; line-height: 1;
   text-shadow: 0 1px 3px rgba(0, 0, 0, .85), 0 0 12px rgba(255, 224, 150, .35);
 }
@@ -1278,9 +1281,9 @@ body[data-mode="snow"] .bonus-rail { border-color: rgba(169, 220, 242, .32); }
 }
 .result-top { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; }
 .result-kicker { font-size: 9px; letter-spacing: .05em; color: var(--muted); }
-.result-title { font-family: var(--serif); font-size: 19px; color: #F6EBD2; }
+.result-title { font-family: var(--font); font-size: 19px; color: #F6EBD2; }
 .result-amount {
-  font-family: var(--serif); font-size: 21px; font-weight: 700; color: #7BE3A6;
+  font-family: var(--font); font-size: 21px; font-weight: 700; color: #7BE3A6;
   font-variant-numeric: tabular-nums; text-align: right; line-height: 1.1;
 }
 .result-amount.lose { color: #FF8D97; }
@@ -1336,7 +1339,7 @@ body[data-mode="snow"] .bonus-rail { border-color: rgba(169, 220, 242, .32); }
 .mv-inner { display: flex; flex-direction: column; align-items: center; gap: 4px; animation: mvIn .5s cubic-bezier(.2,1,.3,1); }
 @keyframes mvIn { from { transform: scale(.9); opacity: 0; } }
 .mv-icon { font-size: 38px; }
-.mv-name { font-family: var(--serif); font-size: 21px; color: #F6EBD2; }
+.mv-name { font-family: var(--font); font-size: 21px; color: #F6EBD2; }
 .mv-sub { font-size: 8px; letter-spacing: .4em; color: var(--muted-2); }
 
 /* ═══════════════════ FX LAYER ═══════════════════ */
@@ -1413,10 +1416,10 @@ body[data-mode="snow"] .bonus-rail { border-color: rgba(169, 220, 242, .32); }
 .cel-inner { position: relative; text-align: center; }
 .cel-kicker { font-size: 9px; letter-spacing: .3em; color: #F0DCB0; }
 .cel-mult {
-  font-family: var(--serif); font-size: 54px; font-weight: 700; line-height: 1.05;
+  font-family: var(--font); font-size: 54px; font-weight: 700; line-height: 1.05;
   color: #FFF3D2; text-shadow: 0 0 30px rgba(255, 200, 90, .8);
 }
-.cel-amount { font-family: var(--serif); font-size: 26px; color: #7BE3A6; }
+.cel-amount { font-family: var(--font); font-size: 26px; color: #7BE3A6; }
 .cel-note { margin-top: 4px; font-size: 8px; letter-spacing: .22em; color: rgba(255, 255, 255, .45); }
 
 /* ═══════════════════ MODALS ═══════════════════ */
@@ -1444,7 +1447,7 @@ body[data-mode="snow"] .bonus-rail { border-color: rgba(169, 220, 242, .32); }
   padding: 12px 14px;
   border-bottom: 1px solid rgba(255, 255, 255, .07);
 }
-.modal-head h2 { font-family: var(--serif); font-size: 15px; color: #F6EBD2; letter-spacing: .02em; }
+.modal-head h2 { font-family: var(--font); font-size: 15px; color: #F6EBD2; letter-spacing: .02em; }
 .modal-x {
   width: 26px; height: 26px; border-radius: 8px;
   display: grid; place-items: center;
@@ -1476,7 +1479,7 @@ body[data-mode="snow"] .bonus-rail { border-color: rgba(169, 220, 242, .32); }
 
 .m-money { display: flex; flex-direction: column; gap: 8px; }
 .m-money > div:first-child { display: flex; justify-content: space-between; align-items: center; font-size: 12px; color: #C6CDD7; }
-.m-money b { font-family: var(--serif); font-size: 17px; color: #F6E5BE; }
+.m-money b { font-family: var(--font); font-size: 17px; color: #F6E5BE; }
 .m-money-actions { display: flex; gap: 6px; }
 .btn {
   padding: 7px 10px; border-radius: 8px; font-size: 10.5px; font-weight: 700;
@@ -1501,7 +1504,7 @@ body[data-mode="snow"] .bonus-rail { border-color: rgba(169, 220, 242, .32); }
 .auth-x { position: absolute; right: 10px; top: 10px; }
 .auth-brand { text-align: center; margin-bottom: 14px; }
 .auth-bolt { font-size: 22px; color: var(--gold-2); }
-.auth-brand h2 { font-family: var(--serif); font-size: 17px; letter-spacing: .1em; color: #F6EBD2; margin-top: 4px; }
+.auth-brand h2 { font-family: var(--font); font-size: 17px; letter-spacing: .1em; color: #F6EBD2; margin-top: 4px; }
 .auth-brand p { font-size: 9.5px; color: var(--muted-2); margin-top: 3px; }
 .auth-tabs {
   display: grid; grid-template-columns: 1fr 1fr; gap: 3px;
@@ -1544,7 +1547,7 @@ body[data-mode="snow"] .bonus-rail { border-color: rgba(169, 220, 242, .32); }
   display: flex; flex-direction: column; gap: 4px;
   font-size: 9.5px; color: var(--muted);
 }
-.ap-bal b { font-family: var(--serif); font-size: 19px; color: #F6E5BE; }
+.ap-bal b { font-family: var(--font); font-size: 19px; color: #F6E5BE; }
 .auth-link { margin-top: 10px; font-size: 10px; color: var(--muted); text-decoration: underline; }
 .auth-foot { margin-top: 12px; text-align: center; }
 .auth-foot button { font-size: 10.5px; color: #C9BFA6; text-decoration: underline; }
@@ -1661,7 +1664,7 @@ body[data-mode="snow"] .bonus-rail { border-color: rgba(169, 220, 242, .32); }
 .splash-stage { position: relative; display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 66px 20px 20px; }
 .splash-arch { position: absolute; top: -56px; left: 50%; transform: translateX(-50%); width: 320px; height: 62px; }
 .arch-text {
-  font-family: var(--serif); font-size: 11px; letter-spacing: .28em;
+  font-family: var(--font); font-size: 11px; letter-spacing: .28em;
   fill: rgba(246, 227, 180, .55);
 }
 .plaque {
@@ -1682,12 +1685,12 @@ body[data-mode="snow"] .bonus-rail { border-color: rgba(169, 220, 242, .32); }
 .pl-corner.bl { left: 5px; bottom: 5px; border-right: 0; border-top: 0; }
 .pl-corner.br { right: 5px; bottom: 5px; border-left: 0; border-top: 0; }
 .plaque-word {
-  font-family: var(--serif); font-size: 30px; letter-spacing: .2em;
+  font-family: var(--font); font-size: 30px; letter-spacing: .2em;
   color: #F6E3B4; text-shadow: 0 0 20px rgba(217, 178, 95, .5);
   text-align: center;
 }
 .plaque-tag { text-align: center; font-size: 7.5px; letter-spacing: .38em; color: var(--muted-2); margin-top: 4px; }
-.splash-ko { font-family: var(--serif); font-size: 19px; color: #F1E4C8; letter-spacing: .1em; }
+.splash-ko { font-family: var(--font); font-size: 19px; color: #F1E4C8; letter-spacing: .1em; }
 .splash-sub { font-size: 8.5px; letter-spacing: .24em; color: var(--muted-2); }
 .splash-flare { position: relative; width: 210px; height: 2px; margin-top: 20px; }
 .flare-track { position: absolute; inset: 0; background: rgba(255, 255, 255, .1); border-radius: 2px; overflow: hidden; }
@@ -1699,7 +1702,7 @@ body[data-mode="snow"] .bonus-rail { border-color: rgba(169, 220, 242, .32); }
 .splash-provide { font-size: 8px; letter-spacing: .3em; color: var(--muted-2); margin-top: 12px; }
 .splash-enp { display: flex; align-items: center; gap: 7px; color: #EBD9AE; }
 .enp-mark svg { width: 22px; height: 22px; }
-.enp-word { font-family: var(--serif); font-size: 15px; letter-spacing: .3em; }
+.enp-word { font-family: var(--font); font-size: 15px; letter-spacing: .3em; }
 
 /* ═══════════════════ DESKTOP ═══════════════════ */
 @media (min-width: 900px) {
@@ -1834,3 +1837,275 @@ body[data-mode="snow"] .bonus-rail { border-color: rgba(169, 220, 242, .32); }
   .mini-roads { height: 26px; }
   .bonus-rail { display: none; }
 }
+
+/* ══════════════════════════════════════════════════════════════
+   STAKE MATCH · Korean Speed Baccarat 화면 맞춤
+   실물 테이블 녹화(work/rec_1843) 기준 —
+   · 전 UI 고딕 산세리프 한 가지 (명조/세리프 제거, PLAYER/BANKER 워터마크만 세리프)
+   · 베이지-브라운 펠트 테이블
+   · 선명한 로열 블루 · 에메랄드 · 크림슨 베팅 매트 / 하단 중앙 이름 · 중앙 정렬 배당
+   · 0 = 반투명 회색, 점수 = 선명한 파랑·빨강 각진 배지
+   · 영상과 같은 어두운 하단 정보 바 (금색 테이블 한도)
+   ══════════════════════════════════════════════════════════════ */
+
+/* ── 1 · 펠트 테이블: 베이지-브라운 가죽 ── */
+.felt {
+  background:
+    radial-gradient(58% 60% at 50% 14%, rgba(255, 238, 214, .20), transparent 66%),
+    linear-gradient(180deg, #3a2417 0%, #573f28 7%, #8f6f4e 20%, var(--felt-a) 42%, #96754f 70%, var(--felt-b) 100%);
+  box-shadow:
+    inset 0 2px 0 rgba(255, 240, 220, .22),
+    inset 0 14px 26px -14px rgba(0, 0, 0, .75),
+    inset 0 -34px 56px -26px rgba(0, 0, 0, .62),
+    0 10px 30px -12px #000;
+}
+.felt-grain {
+  background-image:
+    repeating-radial-gradient(circle at 50% 128%, rgba(255, 255, 255, .02) 0 1px, transparent 1px 7px),
+    repeating-linear-gradient(38deg, rgba(0, 0, 0, .035) 0 1px, transparent 1px 4px);
+  opacity: .9;
+}
+.felt-cushion {
+  height: 9%;
+  background: linear-gradient(180deg, rgba(20, 10, 4, .62), transparent 78%);
+  box-shadow: inset 0 1px 0 rgba(255, 232, 196, .22);
+}
+.felt-label {
+  font-family: var(--serif); font-weight: 400;
+  letter-spacing: .26em; font-size: clamp(10px, 2.9vw, 16px);
+  color: rgba(255, 246, 232, .58);
+  text-shadow: 0 1px 1px rgba(60, 36, 18, .5);
+}
+.felt-mark { opacity: .1; }
+/* 딜러 상반신 아래에서 펠트로 자연스럽게 녹이기 */
+.dp-fade {
+  background:
+    linear-gradient(180deg, rgba(14, 8, 5, .5) 0%, rgba(14, 8, 5, 0) 12%, rgba(14, 8, 5, 0) 46%, rgba(40, 24, 14, .55) 66%, rgba(58, 36, 23, .9) 82%, rgba(58, 36, 23, .98) 100%),
+    radial-gradient(82% 76% at 50% 36%, transparent 44%, rgba(0, 0, 0, .45) 100%);
+}
+
+/* ── 2 · 점수 배지: 0 = 반투명 회색 / 점수 = 선명한 파랑·빨강 ── */
+.score-badge {
+  width: 48px; height: 48px; border-radius: 6px;
+  font-family: var(--font); font-size: 26px; font-weight: 800;
+  letter-spacing: -.02em;
+  background: rgba(90, 90, 90, .6);
+  border: 1px solid rgba(255, 255, 255, .5);
+  color: #fff;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, .4);
+  box-shadow: 0 3px 10px -6px rgba(0, 0, 0, .7);
+  -webkit-backdrop-filter: blur(3px); backdrop-filter: blur(3px);
+}
+.sb-p { left: 6px; background: rgba(90, 90, 90, .6); }
+.sb-b { right: 6px; background: rgba(90, 90, 90, .6); }
+.score-badge.is-scored { text-shadow: 0 1px 3px rgba(0, 0, 0, .35); }
+.score-badge.is-scored.sb-p {
+  background: linear-gradient(180deg, #2f7fe4, #1663c2 60%, #0f4b9c);
+  border-color: rgba(255, 255, 255, .34);
+  box-shadow: 0 4px 12px -6px #000, inset 0 1px 0 rgba(255, 255, 255, .3);
+}
+.score-badge.is-scored.sb-b {
+  background: linear-gradient(180deg, #e5383f, #c4161e 60%, #9d0f16);
+  border-color: rgba(255, 255, 255, .34);
+  box-shadow: 0 4px 12px -6px #000, inset 0 1px 0 rgba(255, 255, 255, .3);
+}
+.score-badge.is-win {
+  transform: scale(1.12);
+  box-shadow: 0 0 0 2px rgba(255, 244, 214, .95), 0 0 22px rgba(255, 214, 120, .7);
+  filter: brightness(1.08);
+}
+
+/* ── 3 · 베팅 매트: 영상과 같은 원색 · 중앙 정렬 ── */
+.mat-row.r1 { grid-template-columns: minmax(0, 1fr) 26% minmax(0, 1fr); }
+.mat-zone {
+  border-radius: 5px;
+  border: 1px solid rgba(0, 0, 0, .22);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .16), inset 0 -18px 30px -20px rgba(0, 0, 0, .75);
+}
+.mat-zone::after {
+  background-image: repeating-radial-gradient(circle at 50% 132%, rgba(255, 255, 255, .075) 0 1px, transparent 1px 8px);
+  opacity: .85;
+}
+.mz-player {
+  background:
+    radial-gradient(120% 96% at 50% 0%, rgba(96, 160, 255, .34), transparent 62%),
+    linear-gradient(178deg, #1b57b8 0%, #14449f 52%, #0c2f72 100%);
+}
+.mz-banker {
+  background:
+    radial-gradient(120% 96% at 50% 0%, rgba(255, 130, 130, .30), transparent 62%),
+    linear-gradient(178deg, #c61923 0%, #a9131c 52%, #8b0d14 100%);
+}
+.mz-tie {
+  border-radius: 50% 50% 5px 5px / 42% 42% 5px 5px;
+  background:
+    radial-gradient(90% 70% at 50% 88%, rgba(120, 240, 150, .28), transparent 64%),
+    linear-gradient(178deg, #1b8a42 0%, #0f6b2f 55%, #0a4c21 100%);
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, .10),
+    inset 0 12px 26px -18px rgba(255, 255, 255, .5),
+    inset 0 -18px 30px -20px rgba(0, 0, 0, .7);
+}
+.mz-side { background: linear-gradient(178deg, #22407f 0%, #1a3366 70%, #12264d 100%); }
+.mz-side.p-side { background: linear-gradient(178deg, #2b4f9c 0%, #1d3a78 70%, #142a58 100%); }
+.mz-side.b-side { background: linear-gradient(178deg, #a01a1c 0%, #831215 70%, #650c10 100%); }
+.mz-perfect { background: linear-gradient(178deg, #6d4e31 0%, #573c25 70%, #432d1a 100%); }
+.mz-either { background: linear-gradient(178deg, #755437 0%, #5e4228 70%, #48301b 100%); }
+
+/* 이름 · 배당 — 플레이어 / 뱅커는 하단 중앙, 무는 한 줄 */
+.mz-player .mz-name, .mz-banker .mz-name {
+  left: 50%; right: auto; bottom: 8px; transform: translateX(-50%);
+  font-family: var(--font); font-size: 16px; font-weight: 800; letter-spacing: -.01em;
+  color: #fff; text-shadow: 0 1px 3px rgba(0, 0, 0, .38);
+  max-width: 100%; white-space: nowrap;
+}
+.mz-player .mz-pay, .mz-banker .mz-pay { display: none; } /* 영상처럼 매트에서는 배당 표기 없음 */
+.mz-tie {
+  display: flex; align-items: flex-end; justify-content: center; gap: 5px;
+  padding-bottom: 7px;
+}
+.mz-tie .mz-name, .mz-tie .mz-pay {
+  position: static; transform: none; left: auto; right: auto; bottom: auto;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, .35);
+}
+.mz-tie .mz-name { font-family: var(--font); font-size: 18px; font-weight: 800; color: #fff; }
+.mz-tie .mz-pay { font-family: var(--font); font-size: 14px; font-weight: 800; color: #4be05f; letter-spacing: -.01em; }
+
+/* 사이드 베팅 2줄 중앙 정렬 */
+.mz-side, .mz-perfect, .mz-either {
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1px;
+  padding: 3px 3px;
+}
+.mz-side .mz-name, .mz-perfect .mz-name, .mz-either .mz-name {
+  position: static; transform: none; left: auto; top: auto; bottom: auto;
+  font-family: var(--font); font-size: 10px; font-weight: 700; letter-spacing: -.02em;
+  color: rgba(255, 255, 255, .95); text-align: center; max-width: 100%;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-shadow: 0 1px 2px rgba(0, 0, 0, .4);
+}
+.mz-side .mz-pay, .mz-perfect .mz-pay, .mz-either .mz-pay {
+  position: static; transform: none; left: auto; right: auto; bottom: auto; top: auto;
+  font-family: var(--font); font-size: 11px; font-weight: 800; letter-spacing: -.01em;
+  color: #fff; text-align: center; white-space: nowrap;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, .35);
+}
+.p-side .mz-pay { color: #a8c8ff; }
+[data-spot="playerBonus"] .mz-pay { color: #ffe6a6; }
+[data-spot="bankerBonus"] .mz-pay { color: #ffd9a8; }
+.b-side .mz-pay { color: #ffb6b8; }
+.mz-perfect .mz-pay { color: #ecd2a8; font-size: 9px; font-weight: 700; }
+.mz-either .mz-pay { color: #f0d8b2; }
+.mz-perfect .mz-name, .mz-either .mz-name { color: #f6e6cd; }
+
+/* 매트 위 베팅 칩: 영상과 같은 블랙 + 화이트 엣지 스팟 */
+.bet-chip {
+  --c-bg: #1b1c20; --c-stripe: #ffffff; --c-ink: #ffffff; --c-ring: rgba(255, 255, 255, .55);
+  width: 32px; height: 32px;
+}
+.bet-chip i { font-family: var(--font); font-size: 8px; font-weight: 800; }
+
+/* 미니 카드 */
+.mini-card {
+  border-radius: 2.5px;
+  box-shadow: 0 2px 6px -2px rgba(0, 0, 0, .55), 0 0 0 .5px rgba(0, 0, 0, .18);
+}
+
+/* 매트 안내 문구는 행 위에 겹치지 않게 아래로 띄움 */
+.mat-tip { bottom: auto; top: -13px; font-size: 7px; color: rgba(255, 255, 255, .5); }
+.mat-tip.on { opacity: .9; }
+
+/* ── 4 · 라운드 시계: 영상처럼 흰 숫자 크게 ── */
+.round-clock::before { background: radial-gradient(circle at 40% 28%, #33302c, #12100e 78%); }
+.rc-num { font-family: var(--font); font-weight: 800; font-size: 24px; letter-spacing: -.02em; }
+
+/* ── 5 · 상단 보너스 레일 · 하단 바 정리 ── */
+.bonus-rail {
+  background: linear-gradient(180deg, rgba(28, 20, 14, .82), rgba(14, 10, 7, .78));
+  border: 1px solid rgba(255, 232, 196, .18);
+  box-shadow: 0 8px 18px -14px #000;
+  -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px);
+}
+.topbar {
+  background: linear-gradient(180deg, #171310, #0b0907);
+  border-bottom: 1px solid rgba(217, 178, 95, .16);
+}
+
+.statusbar {
+  height: 26px;
+  padding: 0 7px;
+  gap: 9px;
+  border-radius: 6px;
+  background: linear-gradient(180deg, #1d110b, #0c0704);
+  border: 1px solid rgba(255, 232, 196, .09);
+  color: #a99e93;
+  font-family: var(--font);
+  font-size: 9.5px; font-weight: 600;
+  letter-spacing: -.01em;
+}
+.statusbar b { color: #ffffff; font-weight: 800; }
+.st-stake { color: #b3a89c; }
+.st-stake b { color: #ffffff; }
+.st-table b { font-size: 9.5px; color: #f4e7d0; font-weight: 700; }
+.st-table i { font-size: 9px; color: #e9c268; font-weight: 800; }
+
+/* 결과 시트 · 배너 · 모달 등 나머지 텍스트도 산세리프 굵기로 정리 */
+.result-title, .mv-name, .modal-head h2, .auth-brand h2, .enp-word { font-family: var(--font); font-weight: 800; letter-spacing: -.01em; }
+.result-amount, .cel-mult, .cel-amount, .m-money b, .ap-bal b, .splash-ko, .splash-ko b { font-family: var(--font); font-weight: 800; letter-spacing: -.02em; }
+.deal-label { font-family: var(--font); font-weight: 800; }
+
+@media (min-width: 900px) {
+  .felt {
+    background:
+      radial-gradient(56% 60% at 50% 16%, rgba(255, 238, 214, .18), transparent 66%),
+      linear-gradient(180deg, #3a2417 0%, #57402a 8%, #8f6f4e 22%, var(--felt-a) 46%, #96754f 72%, var(--felt-b) 100%);
+  }
+  .mat-row.r1 { grid-template-columns: minmax(0, 1fr) 26% minmax(0, 1fr); }
+  .mz-player .mz-name, .mz-banker .mz-name { font-size: 19px; bottom: 11px; }
+  .mz-tie .mz-name { font-size: 22px; }
+  .mz-tie .mz-pay { font-size: 16px; }
+  .mz-side .mz-name, .mz-perfect .mz-name, .mz-either .mz-name { font-size: 12px; }
+  .mz-side .mz-pay, .mz-perfect .mz-pay, .mz-either .mz-pay { font-size: 13px; }
+  .mz-perfect .mz-pay { font-size: 10.5px; }
+  .score-badge { width: 56px; height: 56px; font-size: 30px; }
+  .sb-p { left: 12px; }
+  .sb-b { right: 12px; }
+  .statusbar { font-size: 10.5px; height: auto; }
+  .bet-chip { width: 36px; height: 36px; }
+}
+
+/* ── 6 · 테이블 위 카드 · 점수 배지 위치 정리 (카드가 배지를 가리지 않게) ── */
+:root { --card-w: clamp(32px, 9.6vw, 46px); }
+.felt-label { top: 4%; }
+.hand { top: 15%; }
+.hand-p { left: 8%; }
+.hand-b { right: 8%; }
+@media (max-height: 740px) and (max-width: 899px) {
+  .hand { top: 14%; }
+  .felt-label { top: 5%; }
+}
+/* 펠트 곡선에 잘리지 않게 안쪽·아래로 */
+.felt-label { top: 6.5%; font-size: clamp(9px, 2.45vw, 14px); }
+.felt-label.fl-p { left: 16%; }
+.felt-label.fl-b { right: 16%; }
+@media (min-width: 900px) {
+  .felt-label { top: 11%; }
+  .hand { top: 27%; left: auto; }
+  .hand-p { left: 8%; }
+  .hand-b { right: 8%; }
+}
+
+/* ── 7 · 슈(카드 케이스) — 영상처럼 어두운 케이스, 흰 덱만 살짝 ── */
+.shoe { width: 28px; height: 25px; }
+.sh-base {
+  background: linear-gradient(160deg, #2b2724, #0e0c0a 78%);
+  border: 1px solid rgba(255, 228, 190, .22);
+  box-shadow: 0 2px 6px -3px rgba(0, 0, 0, .8);
+}
+.sh-deck {
+  left: 4px; right: 7px; top: 4px; bottom: 8px;
+  background: repeating-linear-gradient(0deg, #efe6d6 0 1.5px, #c2b6a4 1.5px 2.5px);
+  opacity: .5;
+}
+.shoe-count { font-size: 7px; color: rgba(255, 255, 255, .42); }
+
+/* ── 8 · 매트 행 비율 — 영상처럼 1행(플레이어·무·뱅커)을 조금 더 크게 ── */
+.mat-row.r1 { flex: 2.05 1 0; }
