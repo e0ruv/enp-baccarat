@@ -10,7 +10,7 @@
 <meta name="format-detection" content="telephone=no" />
 <meta name="description" content="가상 머니 전용 모의 바카라 시뮬레이터. 스피드 · 벚꽃 · 눈꽃 3가지 테이블, 8덱 슈, 빅로드 · 중국점, 실전 사이드 베팅." />
 <title>ENP BACCARAT · 가상 머니 모의 바카라</title>
-<link rel="stylesheet" href="css/style.css" />
+<link rel="stylesheet" href="css/style.css?v=20261126b" />
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Crect width='24' height='24' rx='6' fill='%230A0C0D'/%3E%3Cpath d='M13.3 3 5 13.5h5.2L9.5 21l8.4-11.5h-5.2L13.3 3Z' fill='%23D9B25F'/%3E%3C/svg%3E" />
 </head>
 <body data-mode="sakura">
@@ -159,6 +159,16 @@
       <div class="score-badge sb-b" id="bankerTotal"><i>0</i></div>
       <div class="hand-badge" id="handBadge" aria-hidden="true"><b class="hb-letter"></b><span class="hb-label"></span></div>
 
+      <!-- 당첨 연출 — 영상처럼 테이블 상단 리본 + 이겼습니다 + 금빛 당첨 금액 -->
+      <div class="win-celebrate" id="winCelebrate" aria-hidden="true">
+        <div class="wc-ribbon" id="wcRibbon"><b id="wcSide">뱅커</b></div>
+        <div class="wc-won" id="wcWon">이겼습니다</div>
+        <div class="wc-amount">
+          <i class="wc-sp s1"></i><i class="wc-sp s2"></i><i class="wc-sp s3"></i><i class="wc-sp s4"></i><i class="wc-sp s5"></i><i class="wc-sp s6"></i>
+          <span class="wc-cur">₩</span><b id="wcAmount">97,500</b>
+        </div>
+      </div>
+
       <div class="round-clock" id="roundClock" aria-label="베팅 카운트다운">
         <span class="rc-ring" aria-hidden="true"></span>
         <span class="rc-num" id="clockNum">10</span>
@@ -190,9 +200,9 @@
         <div class="bigroad" id="bigroad"></div>
 
         <div class="mini-roads">
-          <div class="mr"><span class="mr-label">1군</span><div class="mr-grid" id="roadEye"></div></div>
-          <div class="mr"><span class="mr-label">2군</span><div class="mr-grid" id="roadSmall"></div></div>
-          <div class="mr"><span class="mr-label">3군</span><div class="mr-grid" id="roadCock"></div></div>
+          <div class="mr eye"><div class="mr-grid" id="roadEye"></div></div>
+          <div class="mr small"><div class="mr-grid" id="roadSmall"></div></div>
+          <div class="mr cock"><div class="mr-grid" id="roadCock"></div></div>
         </div>
       </div>
 
@@ -201,7 +211,7 @@
       </div>
 
       <button class="road-chev" id="roadToggle" aria-expanded="true" aria-label="보조 출목표 접기/펼치기">
-        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 14l6-6 6 6" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 13.4l7-6.4 7 6.4" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"/><path d="M5 19.4l7-6.4 7 6.4" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"/></svg>
       </button>
 
       <div class="rb-stats">
@@ -210,8 +220,8 @@
         <span class="sp p"><i>P</i><b id="statP">0</b></span>
         <span class="sp b"><i>B</i><b id="statB">0</b></span>
         <span class="sp t"><i>T</i><b id="statT">0</b></span>
-        <button type="button" class="pred p" id="predP" aria-pressed="false" title="다음 판을 플레이어로 가정해 출목표에 미리보기"><i></i><i></i><i></i><em>/</em></button>
-        <button type="button" class="pred b" id="predB" aria-pressed="false" title="다음 판을 뱅커로 가정해 출목표에 미리보기"><i></i><i></i><i></i><em>/</em></button>
+        <button type="button" class="pred p" id="predP" aria-pressed="false" title="다음 판을 플레이어로 가정해 출목표에 미리보기"><i></i><i></i><i></i></button>
+        <button type="button" class="pred b" id="predB" aria-pressed="false" title="다음 판을 뱅커로 가정해 출목표에 미리보기"><i></i><i></i><i></i></button>
         <span class="road-count" id="roadCount" hidden>0</span>
       </div>
     </section>
@@ -330,7 +340,8 @@
 
     <!-- ─────────── STATUS BAR ─────────── -->
     <footer class="statusbar">
-      <span class="st-stake">총 베팅금 <b id="totalStake">₩0</b></span>
+      <span class="st-stake" id="stakeCell">총 베팅금 <b id="totalStake">₩0</b></span>
+      <span class="st-lastwin" id="lastWinCell" hidden>지난 우승 <b id="lastWin">₩0</b></span>
       <span class="st-bal">잔고 <b id="statusBalance">₩10억</b></span>
       <span class="st-table"><b id="tableName">벚꽃 바카라</b><i id="statusLimit">₩1,000–5,000,000</i></span>
       <span class="st-note" id="tableNote">8덱 슈</span>
@@ -563,9 +574,9 @@
   </div>
 </div>
 
-<script src="js/engine.js"></script>
-<script src="js/audio.js"></script>
-<script src="js/fx.js"></script>
-<script src="js/app.js"></script>
+<script src="js/engine.js?v=20261126b"></script>
+<script src="js/audio.js?v=20261126b"></script>
+<script src="js/fx.js?v=20261126b"></script>
+<script src="js/app.js?v=20261126b"></script>
 </body>
 </html>

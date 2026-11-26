@@ -589,13 +589,33 @@ def run_desktop(browser):
     check("payout matches engine", abs(state["balance"] - (bal_before + expected["returned"])) < 1,
           f"{state['balance']} vs {bal_before + expected['returned']}")
     check("hand counted", state["stats"]["hands"] == hands0 + 1)
-    # 결과 시트는 당첨금·환급이 있을 때만 뜹니다(잃으면 승리 배지만).
-    expect_sheet = expected["returned"] > 0 or expected["net"] > 0
+    # 결과 시트(#result)는 쓰지 않습니다 — 당첨은 테이블 위 리본 연출(IMG_1308)로만 보여 줍니다.
+    expect_win = expected["net"] > 0 and expected["returned"] > 0
     sheet_on = page.eval_on_selector("#result", "e=>e.classList.contains('on')")
-    check("result sheet only on a payout", sheet_on == expect_sheet,
-          f"sheet={sheet_on} returned={expected['returned']} net={expected['net']}")
-    if expect_sheet:
-        check("result amount shown", page.inner_text("#resultAmount") != "")
+    check("result sheet never pops up", sheet_on is False, f"sheet={sheet_on}")
+    win_line = page.evaluate("""() => {
+      const c = document.getElementById('winCelebrate');
+      const chip = document.querySelector('.bet-chip.is-win');
+      return {on: c.classList.contains('on'),
+              side: document.getElementById('wcSide').textContent.trim(),
+              ribbon: document.getElementById('wcRibbon').className,
+              amount: document.getElementById('wcAmount').textContent.trim(),
+              lastwin: document.getElementById('lastWinCell').hidden ? '' : document.getElementById('lastWin').textContent.trim(),
+              winline: document.querySelector('.statusbar').classList.contains('is-winline'),
+              chip: chip ? {label: chip.textContent.trim(), cls: chip.className} : null};
+    }""")
+    check("win ribbon appears exactly on a winning round", win_line["on"] == expect_win, str(win_line))
+    if expect_win:
+        check("win ribbon names the winning side",
+              win_line["side"] == {"player": "플레이어", "banker": "뱅커", "tie": "무"}[state["hand"]["winner"]],
+              win_line["side"])
+        check("win amount is the round payout",
+              win_line["amount"].replace(",", "") == str(int(round(expected["returned"]))), win_line["amount"])
+        check("status bar shows the last win in gold",
+              win_line["winline"] and win_line["lastwin"].startswith("₩"), str(win_line))
+        check("winning chip glows in its amount colour",
+              bool(win_line["chip"]) and "is-win" in win_line["chip"]["cls"] and win_line["chip"]["label"].endswith("+"),
+              str(win_line["chip"]))
     check("mat mini cards rendered", page.eval_on_selector_all(".mz-cards .mini-card", "e=>e.length") >= 4,
           str(page.eval_on_selector_all(".mz-cards .mini-card", "e=>e.length")))
     check("score badges show hand totals",
@@ -665,10 +685,14 @@ def run_desktop(browser):
     page.wait_for_function("window.__bac.state.phase === 'betting'", timeout=15000)
     page.evaluate("""() => {
       window.__score_log = [];
+      window.__tick_log = 0;
       for (const id of ['playerTotal', 'bankerTotal']) {
         const el = document.getElementById(id);
-        new MutationObserver(() => window.__score_log.push([id, el.textContent.trim()]))
-          .observe(el, {childList: true, characterData: true, subtree: true});
+        new MutationObserver(() => {
+          window.__score_log.push([id, el.textContent.trim()]);
+          if (el.classList.contains('is-tick')) window.__tick_log++;
+        }).observe(el, {childList: true, characterData: true, subtree: true, attributes: true,
+                        attributeFilter: ['class']});
       }
     }""")
     page.evaluate("() => { window.__bac.deal({auto: true}); }")
@@ -684,6 +708,8 @@ def run_desktop(browser):
         running.append(str(tot))
     check("score badge counts every flipped card", all(v in p_seq for v in running) and p_seq[-1] == str(hand["playerTotal"]),
           f"{p_seq} vs {running}")
+    check("each card makes the badge pop (live add)", page.evaluate("window.__tick_log") >= 2,
+          str(page.evaluate("window.__tick_log")))
     b_run = []
     tot = 0
     for c in hand["bankerCards"]:
@@ -696,9 +722,10 @@ def run_desktop(browser):
           any(v != "0" for v in p_seq) or any(v != "0" for v in b_seq),
           f"{p_seq} / {b_seq} vs {running} / {b_run}")
     counts = hand_counts(page)
+    bead_cap = page.eval_on_selector_all(".bead-cell", "e=>e.length")
     check("bead plate holds every hand",
-          page.eval_on_selector_all(".bead-cell.p, .bead-cell.b, .bead-cell.t", "e=>e.length") == min(counts["n"], 24),
-          f"{page.eval_on_selector_all('.bead-cell.p, .bead-cell.b, .bead-cell.t', 'e=>e.length')} vs {counts['n']}")
+          page.eval_on_selector_all(".bead-cell.p, .bead-cell.b, .bead-cell.t", "e=>e.length") == min(counts["n"], bead_cap),
+          f"{page.eval_on_selector_all('.bead-cell.p, .bead-cell.b, .bead-cell.t', 'e=>e.length')} vs {counts['n']} / cap {bead_cap}")
     bead_style = page.evaluate("""() => {
       const b = document.querySelector('.bead-cell .bch');
       if (!b) return null;
@@ -709,9 +736,77 @@ def run_desktop(browser):
     check("bead badges are round", bead_style and bead_style["radius"].startswith("50%") and abs(bead_style["w"] - bead_style["h"]) <= 1,
           str(bead_style))
     check("bead badge colour by side",
-          bead_style and bead_style["bg"] in ("rgb(46, 100, 214)", "rgb(226, 58, 70)", "rgb(18, 160, 90)"),
+          bead_style and bead_style["bg"] in ("rgb(26, 108, 240)", "rgb(224, 27, 37)", "rgb(23, 163, 91)"),
           str(bead_style and bead_style["bg"]))
     check("big road marks drawn", page.eval_on_selector_all(".br-cell.p, .br-cell.b", "e=>e.length") >= 1)
+
+    # ── 그림장 디자인 (f_06 · IMG_1309): 글자 없는 굵은 링 · 라벨 없는 3등분 중국점 · 큰 비드 · 떠 있는 접기 버튼
+    road_ui = page.evaluate("""() => {
+      const rim = document.querySelector('.br-cell .rim');
+      const rs = rim ? getComputedStyle(rim) : null;
+      const cell = rim ? rim.closest('.br-cell') : null;
+      const chev = document.querySelector('.road-chev');
+      const big = document.querySelector('.bigroad').getBoundingClientRect();
+      const cr = chev.getBoundingClientRect();
+      const mr = [...document.querySelectorAll('.mini-roads .mr')];
+      const bead = document.querySelector('.bead-cell .bch');
+      const bcs = bead ? getComputedStyle(bead) : null;
+      const shapeOf = (roadSel) => {
+        const box = document.querySelector(roadSel + ' .mr-grid');
+        if (!box) return null;
+        const cell = document.createElement('div');
+        cell.className = 'mr-cell mr-dot r';
+        const icon = document.createElement('i');
+        cell.appendChild(icon);
+        box.appendChild(cell);
+        const st = getComputedStyle(icon);
+        const rect = icon.getBoundingClientRect();
+        const out = {w: +rect.width.toFixed(1), h: +rect.height.toFixed(1),
+                     hh: parseFloat(st.height), tr: st.transform !== 'none',
+                     r: st.borderRadius, bw: parseFloat(st.borderTopWidth), bg: st.backgroundColor};
+        cell.remove();
+        return out;
+      };
+      const shape = (el) => el ? {w: +el.getBoundingClientRect().width.toFixed(1),
+                                  h: +el.getBoundingClientRect().height.toFixed(1),
+                                  r: getComputedStyle(el).borderRadius,
+                                  bw: parseFloat(getComputedStyle(el).borderTopWidth),
+                                  bg: getComputedStyle(el).backgroundColor} : null;
+      return {
+        rimText: rim ? rim.textContent.trim() : 'none',
+        rimBorder: rs ? parseFloat(rs.borderTopWidth) : 0,
+        rimRound: rs ? rs.borderRadius : '',
+        labels: document.querySelectorAll('.mr-label').length,
+        mrCount: mr.length,
+        mrWidths: mr.map(m => Math.round(m.getBoundingClientRect().width)),
+        chevTopRight: cr.right <= big.right + 2 && cr.left > big.left + big.width * 0.45 &&
+                      cr.top <= big.top + big.height * 0.4 && cr.bottom < big.bottom,
+        bead: bcs ? {color: bcs.color, weight: parseInt(bcs.fontWeight, 10), radius: bcs.borderRadius,
+                     solid: bcs.backgroundImage === 'none' && bcs.backgroundColor !== 'rgba(0, 0, 0, 0)'} : null,
+        eye: shapeOf('.eye'),
+        small: shapeOf('.small'),
+        cock: shapeOf('.cock')
+      };
+    }""")
+    check("big road rings carry no letters", road_ui["rimText"] == "", str(road_ui["rimText"]))
+    check("big road rings are bold hollow circles",
+          road_ui["rimBorder"] >= 1.6 and road_ui["rimRound"].startswith("50%"),
+          f"{road_ui['rimBorder']} / {road_ui['rimRound']}")
+    check("china roads lose their labels", road_ui["labels"] == 0 and road_ui["mrCount"] == 3, str(road_ui))
+    check("china roads split the width in three",
+          max(road_ui["mrWidths"]) - min(road_ui["mrWidths"]) <= 2, str(road_ui["mrWidths"]))
+    check("road fold button floats inside the big road's top right", road_ui["chevTopRight"] is True)
+    check("bead badges are bold white letters on a solid circle",
+          road_ui["bead"] and road_ui["bead"]["color"] == "rgb(255, 255, 255)" and road_ui["bead"]["weight"] >= 800
+          and road_ui["bead"]["radius"].startswith("50%") and road_ui["bead"]["solid"],
+          str(road_ui["bead"]))
+    check("china 1군 draws hollow circles", road_ui["eye"] and road_ui["eye"]["bw"] >= 1 and road_ui["eye"]["r"].startswith("50%"),
+          str(road_ui["eye"]))
+    check("china 2군 draws filled dots",
+          road_ui["small"] and road_ui["small"]["bw"] == 0 and road_ui["small"]["r"].startswith("50%")
+          and road_ui["small"]["bg"] not in ("rgba(0, 0, 0, 0)", "transparent"), str(road_ui["small"]))
+    check("china 3군 draws thin slashes",
+          road_ui["cock"] and road_ui["cock"]["hh"] <= 3 and road_ui["cock"]["tr"], str(road_ui["cock"]))
     check("stat bar counts", page.inner_text("#statP") == str(counts["p"]) and
           page.inner_text("#statB") == str(counts["b"]) and
           page.inner_text("#statHands") == str(counts["n"]),
@@ -740,6 +835,72 @@ def run_desktop(browser):
           page.eval_on_selector("#handBadge", "e=>e.classList.contains('on') && e.querySelector('.hb-letter').textContent === 'B'"),
           page.eval_on_selector("#handBadge", "e=>e.textContent"))
     page.wait_for_function("window.__bac.state.phase === 'betting'", timeout=8000)
+
+    # ── 당첨 라운드: 테이블 위 리본 + '이겼습니다' + 금빛 금액 + 금액대 색 당첨 칩 + 지난 우승
+    page.evaluate("""() => {
+      const s = window.__bac.state;
+      s.bets = { banker: 50000 };
+      s.balance -= 50000;
+      s.bonus = [];
+      s.phase = 'dealing';
+      s.hand = {
+        playerCards: [{rank: '8', suit: 'h', id: '8h'}, {rank: '4', suit: 'd', id: '4d'}],
+        bankerCards: [{rank: '7', suit: 'c', id: '7c'}, {rank: '10', suit: 'h', id: '10h'}],
+        playerTotal: 2, bankerTotal: 7, winner: 'banker', natural: false,
+        playerThird: null, bankerThird: null, playerPair: false, bankerPair: false,
+        playerPerfect: false, bankerPerfect: false, trace: ['player-draw']
+      };
+      window.__bac.finishHand();
+    }""")
+    page.wait_for_timeout(400)
+    win_probe = page.evaluate("""() => {
+      const c = document.getElementById('winCelebrate');
+      const amt = document.getElementById('wcAmount');
+      const st = document.querySelector('.statusbar');
+      const chip = document.querySelector('.bet-chip.is-win');
+      const cs = getComputedStyle(amt);
+      const bigRow = document.querySelector('.bigroad .br-cell.p, .bigroad .br-cell.b');
+      return {
+        on: c.classList.contains('on'),
+        ribbon: document.getElementById('wcRibbon').className,
+        side: document.getElementById('wcSide').textContent.trim(),
+        amount: amt.textContent.trim(),
+        gold: getComputedStyle(document.querySelector('.wc-amount')).backgroundImage.indexOf('gradient') >= 0
+              && cs.webkitTextFillColor.replace(/\s/g, '') === 'rgba(0,0,0,0)',
+        won: document.getElementById('wcWon').textContent.trim(),
+        sheet: document.getElementById('result').classList.contains('on'),
+        lastwin: document.getElementById('lastWin').textContent.trim(),
+        stakeHidden: document.getElementById('stakeCell').hidden,
+        winline: st.classList.contains('is-winline'),
+        chip: chip ? {label: chip.textContent.trim(), cls: chip.className,
+                      bg: getComputedStyle(chip).getPropertyValue('--c-bg').trim()} : null,
+        badgeHidden: getComputedStyle(document.getElementById('handBadge')).opacity
+      };
+    }""")
+    check("winning round shows the ribbon celebration", win_probe["on"] is True, str(win_probe))
+    check("ribbon names banker and turns red", win_probe["side"] == "뱅커" and "is-b" in win_probe["ribbon"], str(win_probe))
+    check("ribbon is followed by '이겼습니다'", win_probe["won"] == "이겼습니다", win_probe["won"])
+    check("win amount is the payout (₩97,500 for 50,000 @0.95)",
+          win_probe["amount"].replace(",", "") == "97500", win_probe["amount"])
+    check("win amount is drawn in gold", win_probe["gold"] is True, str(win_probe["gold"]))
+    check("winning round keeps the result sheet hidden", win_probe["sheet"] is False)
+    check("status bar swaps stake for '지난 우승'",
+          win_probe["winline"] and win_probe["stakeHidden"] and win_probe["lastwin"] == "₩97,500", str(win_probe))
+    check("winning chip shows the payout in the amount colour",
+          bool(win_probe["chip"]) and win_probe["chip"]["label"] == "97k+" and
+          win_probe["chip"]["bg"] == "#1B8A3A", str(win_probe["chip"]))
+    check("ribbon replaces the centre winner badge", float(win_probe["badgeHidden"]) < 0.2, win_probe["badgeHidden"])
+    page.wait_for_function("window.__bac.state.phase === 'betting'", timeout=8000)
+    page.wait_for_timeout(250)
+    after = page.evaluate("""() => ({
+      on: document.getElementById('winCelebrate').classList.contains('on'),
+      winline: document.querySelector('.statusbar').classList.contains('is-winline'),
+      chips: document.querySelectorAll('.bet-chip.is-win').length,
+      stakeBack: !document.getElementById('stakeCell').hidden
+    })""")
+    check("next round clears the win celebration",
+          after["on"] is False and after["winline"] is False and after["chips"] == 0 and after["stakeBack"] is True,
+          str(after))
 
     # ── rebet
     tclick(page, "#resultClose")
@@ -938,9 +1099,12 @@ def run_desktop(browser):
         check("celebration shown", page.eval_on_selector("#celebrate", "e=>e.classList.contains('on')"))
         check("celebration multiplier matches settlement", f"×{settled_mult}" in page.inner_text("#celMult"),
               f"×{settled_mult} vs {page.inner_text('#celMult')}")
-        check("result sheet shown with the bonus win", page.eval_on_selector("#result", "e=>e.classList.contains('on')"))
-        check("petals fall on the result sheet", page.eval_on_selector_all("#result .fx-fall .zf", "e=>e.length") > 0,
-              str(page.eval_on_selector_all("#result .fx-fall .zf", "e=>e.length")))
+        check("win ribbon shown with the bonus win",
+              page.eval_on_selector("#winCelebrate", "e=>e.classList.contains('on')"))
+        check("ribbon amount is shown with the bonus win",
+              page.inner_text("#wcAmount").replace(",", "").isdigit(), page.inner_text("#wcAmount"))
+        check("petals fall on the win ribbon", page.eval_on_selector_all("#winCelebrate .fx-fall .zf", "e=>e.length") > 0,
+              str(page.eval_on_selector_all("#winCelebrate .fx-fall .zf", "e=>e.length")))
         check("petals fall on the win banner", page.eval_on_selector_all("#celebrate .fx-fall .zf", "e=>e.length") > 0,
               str(page.eval_on_selector_all("#celebrate .fx-fall .zf", "e=>e.length")))
         page.screenshot(path=os.path.join(ROOT, "preview-celebration.png"))
@@ -1154,6 +1318,54 @@ def run_mobile(browser):
     check("logo double-tap opens PIN on mobile", page.eval_on_selector("#pinBack", "e=>!e.hidden"))
     page.click("#pinClose")
     page.wait_for_timeout(200)
+
+    # ── 모바일 실탭: P·B 예측 버튼 → 그림장 깜빡이 링이 화면에 보인다
+    page.evaluate("() => window.__bac.setPreview(null)")
+    page.wait_for_timeout(120)
+    box = page.query_selector("#predP").bounding_box()
+    check("P button is big enough to tap", box and box["width"] >= 44 and box["height"] >= 22, str(box))
+    page.touchscreen.tap(box["x"] + box["width"] / 2, box["y"] + box["height"] / 2)
+    page.wait_for_timeout(500)
+    pv = page.evaluate("""() => {
+      const cell = document.querySelector('.br-cell.is-preview');
+      if (!cell) return null;
+      const r = cell.getBoundingClientRect();
+      const after = getComputedStyle(cell, '::after');
+      return {x: Math.round(r.left), y: Math.round(r.top), w: Math.round(r.width), h: Math.round(r.height),
+              inView: r.left >= 0 && r.top >= 0 && r.right <= window.innerWidth + .5 && r.bottom <= window.innerHeight + .5,
+              anim: after.animationName, op: after.opacity};
+    }""")
+    check("mobile P tap marks the next big-road cell", pv is not None, str(pv))
+    check("the preview cell sits inside the screen", pv and pv["inView"] and pv["w"] > 0 and pv["h"] > 0, str(pv))
+    check("the preview ring blinks", pv and pv["anim"] != "none", str(pv))
+    if pv:
+        page.wait_for_timeout(430)
+        op2 = page.evaluate("() => { const c = document.querySelector('.br-cell.is-preview'); return c ? getComputedStyle(c, '::after').opacity : null; }")
+        check("the preview ring fades in and out", op2 is not None and op2 != pv["op"], f"{pv['op']} -> {op2}")
+    # 중국점이 시작된 이후에도 함께 점멸하는지: 긴 출목표를 잠시 넣어 확인하고 되돌린다
+    mr = page.evaluate("""() => {
+      const s = window.__bac.state;
+      const saved = s.history.slice();
+      const seq = ['player','banker','banker','player','player','banker','player','banker','banker','player','player','banker'];
+      s.history = seq.map((w, i) => ({winner: w, p: 7, b: 5, pp: false, bp: false, mult: 1, ts: Date.now() + i}));
+      window.__bac.renderAll();
+      const cells = [...document.querySelectorAll('.mr-cell.is-preview')].filter(c => {
+        const r = c.getBoundingClientRect();
+        return r.left >= 0 && r.top >= 0 && r.right <= window.innerWidth + .5 && r.bottom <= window.innerHeight + .5;
+      });
+      const n = cells.length;
+      s.history = saved;
+      window.__bac.renderAll();
+      return n;
+    }""")
+    check("the preview also marks the china roads on screen", mr >= 1, str(mr))
+    boxb = page.query_selector("#predB").bounding_box()
+    page.touchscreen.tap(boxb["x"] + boxb["width"] / 2, boxb["y"] + boxb["height"] / 2)
+    page.wait_for_timeout(400)
+    check("mobile B tap switches the preview to banker",
+          page.eval_on_selector(".br-cell.is-preview", "e=>e.classList.contains('b')"))
+    page.evaluate("() => window.__bac.setPreview(null)")
+    page.wait_for_timeout(150)
 
     # ── 3 modes on mobile
     for mode in ["speed", "sakura", "snow"]:

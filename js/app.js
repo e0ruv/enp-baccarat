@@ -41,6 +41,15 @@
     return String(v);
   };
 
+  /** 당첨 칩 표기 — 영상처럼 97,500 → '97k+' */
+  const winChipLabel = (n) => {
+    const v = Math.round(n);
+    if (v >= 100000000) return (v / 100000000).toFixed(v % 100000000 ? 1 : 0) + '억+';
+    if (v >= 10000) return Math.floor(v / 1000) + 'k+';
+    if (v >= 1000) return Math.floor(v / 100) / 10 + 'k+';
+    return v + '+';
+  };
+
   const SPOT_LABEL = {
     player: '플레이어',
     banker: '뱅커',
@@ -228,6 +237,14 @@
     roundClock: $('#roundClock'),
     clockNum: $('#clockNum'),
     handBadge: $('#handBadge'),
+    winCelebrate: $('#winCelebrate'),
+    wcRibbon: $('#wcRibbon'),
+    wcSide: $('#wcSide'),
+    wcAmount: $('#wcAmount'),
+    stakeCell: $('#stakeCell'),
+    lastWinCell: $('#lastWinCell'),
+    lastWin: $('#lastWin'),
+    statusBar: $('.statusbar'),
     statusBalance: $('#statusBalance'),
     statusLimit: $('#statusLimit'),
     dealerView: $('#dealerView'),
@@ -450,7 +467,14 @@
     const last = hist.slice(-3).map((h) => h.winner);
     [[el.predP, 'player'], [el.predB, 'banker']].forEach(([box, side]) => {
       if (!box) return;
-      Array.from(box.querySelectorAll('i')).forEach((dot, i) => dot.classList.toggle('on', last[i] === side));
+      // 최근 3판: 이 진영 = 속 빈 링, 반대 진영 = 속 찬 점, 무 = 빗금 (영상 표기)
+      Array.from(box.querySelectorAll('i')).forEach((dot, i) => {
+        const w = last[i];
+        dot.classList.remove('win', 'lose', 'tie', 'on');
+        if (!w) return;
+        dot.classList.add(w === 'tie' ? 'tie' : w === side ? 'win' : 'lose');
+        if (w === side) dot.classList.add('on');
+      });
       box.classList.toggle('is-on', previewSide === side);
       box.setAttribute('aria-pressed', previewSide === side ? 'true' : 'false');
     });
@@ -946,10 +970,17 @@
       const badge = side === 'player' ? el.playerTotal : el.bankerTotal;
       if (!badge) continue;
       const total = cards.length ? E.handTotal(cards) : 0;
+      const shown = badge.textContent.trim();
       if (!cards.length) badge.innerHTML = '<i>0</i>';
       else badge.textContent = total;
       // 0 = 반투명 회색, 점수가 나면 선명한 파랑/빨강 (영상과 동일)
       badge.classList.toggle('is-scored', cards.length > 0 && total > 0);
+      // 카드가 놓이는 그 순간 눈에 보이게: 숫자가 바뀔 때마다 배지가 톡 튄다
+      if (cards.length && shown !== String(total)) {
+        badge.classList.remove('is-tick');
+        void badge.offsetWidth;
+        badge.classList.add('is-tick');
+      }
     }
     renderMiniCards();
   }
@@ -1635,15 +1666,11 @@
       }
     }
 
-    // 이겼거나 푸시(당첨금·환급 발생)일 때만 결과 시트를 띄웁니다.
+    // 결과 시트(#result)는 띄우지 않습니다 — 당첨은 테이블 위 리본 연출로만 보여 줍니다.
     // 잃은 라운드는 가운데 승리 배지(P/B/T)만 보여주고 조용히 다음 라운드로 넘어갑니다.
-    const showSheet = hadBets && (settled.net > 0 || settled.returned > 0);
-    if (showSheet) {
-      showResult(settled, result, betSpots);
-    } else {
-      el.result.classList.remove('on');
-      clearTimeout(resultTimer);
-    }
+    el.result.classList.remove('on');
+    clearTimeout(resultTimer);
+    const isWin = hadBets && settled.net > 0 && settled.returned > 0;
     if (hadBets) celebrate(settled);
     updateLiveMults();
 
@@ -1652,7 +1679,10 @@
       if (item.outcome === 'win' && item.multiplier > 1) fallOnZone(item.spot);
     }
 
-    holdResult(showSheet, settled);
+    holdResult(isWin, settled);
+    // 칩·상태바 렌더가 끝난 뒤 당첨 연출을 얹는다
+    if (isWin) showWin(settled, result, betSpots);
+    else hideWin();
   }
 
   /* ───────────── result hold → clean table → new 10s round ───────────── */
@@ -1674,6 +1704,7 @@
     if (S.phase !== 'result') return;
     el.result.classList.remove('on');
     clearTimeout(resultTimer);
+    hideWin();
     clearTable();
     if (el.feltStatus) el.feltStatus.textContent = 'PLACE YOUR BETS';
     S.phase = 'betting';
@@ -1705,6 +1736,62 @@
       renderBetState();
       save();
     }, 500);
+  }
+
+  /* ───────────── 당첨 연출 (IMG_1308) ─────────────
+     테이블 상단을 가로지르는 리본(승리 진영) → '이겼습니다' → 금빛 당첨 금액.
+     결과 시트(#result) 대신 이 연출만 쓰고, 당첨 칸 칩은 금액대 색으로 빛난다. */
+  let winTimer = 0;
+
+  function showWin(settled, result, betSpots) {
+    const payout = Math.round(settled.returned || 0);
+    if (!(payout > 0) || !(settled.net > 0)) { hideWin(); return; }
+    const side = result.winner;
+    const label = side === 'player' ? '플레이어' : side === 'banker' ? '뱅커' : '무';
+    if (el.wcSide) el.wcSide.textContent = label;
+    if (el.wcRibbon) {
+      el.wcRibbon.className = 'wc-ribbon ' +
+        (side === 'player' ? 'is-p' : side === 'banker' ? 'is-b' : 'is-t');
+    }
+    if (el.wcAmount) el.wcAmount.textContent = Math.round(payout).toLocaleString('ko-KR');
+    if (el.winCelebrate) {
+      el.winCelebrate.classList.remove('on');
+      void el.winCelebrate.offsetWidth;
+      el.winCelebrate.classList.add('on');
+      el.winCelebrate.setAttribute('aria-hidden', 'false');
+    }
+    if (el.dealerView) el.dealerView.classList.add('is-winning');
+    // 하단 정보 바: 총 베팅금 자리에 '지난 우승 ₩…' (금색)
+    if (el.lastWin) el.lastWin.textContent = won(payout);
+    if (el.lastWinCell) el.lastWinCell.hidden = false;
+    if (el.stakeCell) el.stakeCell.hidden = true;
+    if (el.statusBar) el.statusBar.classList.add('is-winline');
+    // 당첨된 베팅 칸: 당첨 금액대의 칩 색으로 빛나며 '97k+' 표기
+    for (const item of settled.items) {
+      if (item.outcome !== 'win' || !(item.returned > 0)) continue;
+      const chip = $(`.bet-chip[data-betchip="${item.spot}"]`);
+      if (!chip) continue;
+      chip.className = 'bet-chip on is-win ' + chipToneOf(item.returned);
+      chip.innerHTML = `<i>${winChipLabel(item.returned)}</i>`;
+    }
+    if (window.FX) FX.burst();
+    fallOnPanel(el.winCelebrate, settled.bestMultiplier > 1 ? 18 : 8);
+    clearTimeout(winTimer);
+    winTimer = window.setTimeout(hideWin, 2800);
+  }
+
+  function hideWin() {
+    clearTimeout(winTimer);
+    winTimer = 0;
+    if (el.winCelebrate) {
+      el.winCelebrate.classList.remove('on');
+      el.winCelebrate.setAttribute('aria-hidden', 'true');
+    }
+    if (el.dealerView) el.dealerView.classList.remove('is-winning');
+    if (el.stakeCell) el.stakeCell.hidden = false;
+    if (el.lastWinCell) el.lastWinCell.hidden = true;
+    if (el.statusBar) el.statusBar.classList.remove('is-winline');
+    $$('.bet-chip.is-win').forEach((c) => c.classList.remove('is-win'));
   }
 
   function showResult(settled, result, betSpots) {
@@ -1754,20 +1841,24 @@
     const hist = S.history;
     if (el.roadCount) el.roadCount.textContent = hist.length;
 
-    // ── 비드로드 (우측 6행 · 원형 배지 · 빈 칸까지 격자)
+    // ── 비드로드 (우측 6행 · 큰 솔리드 원 + 굵은 흰색 글씨 · 최신 열만 선명)
     el.bead.innerHTML = '';
     const ROWS = 6;
-    const beadHist = hist.slice(-24);
-    const beadCols = Math.max(3, Math.min(4, Math.ceil(beadHist.length / ROWS)));
+    const beadW = el.bead.clientWidth || 58;
+    const beadCols = clamp(Math.floor(beadW / 22), 2, 5);
+    const beadHist = hist.slice(-beadCols * ROWS);
+    const beadUsed = Math.max(1, Math.min(beadCols, Math.ceil(beadHist.length / ROWS)));
     el.bead.style.gridTemplateColumns = `repeat(${beadCols}, minmax(0, 1fr))`;
     const beadFrag = document.createDocumentFragment();
     for (let r = 1; r <= ROWS; r++) {
       for (let c = 1; c <= beadCols; c++) {
-        const i = (c - 1) * ROWS + (r - 1);
-        const h = beadHist[i];
+        // 최신 판이 왼쪽(빅로드 옆) 열에서부터 채워진다 — 영상과 같은 순서
+        const colFromNewest = beadUsed - c;
+        const h = colFromNewest >= 0 ? beadHist[colFromNewest * ROWS + (r - 1)] : null;
         const d = document.createElement('div');
         const cls = !h ? '' : h.winner === 'player' ? 'p' : h.winner === 'banker' ? 'b' : 't';
         d.className = 'bead-cell' + (cls ? ' ' + cls : '');
+        if (c > 1) d.classList.add('is-past');
         d.style.gridColumn = String(c);
         d.style.gridRow = String(r);
         if (h) {
@@ -1775,16 +1866,6 @@
           badge.className = 'bch';
           badge.textContent = h.winner === 'player' ? 'P' : h.winner === 'banker' ? 'B' : 'T';
           d.appendChild(badge);
-          if (h.winner === 'tie') {
-            const s = document.createElement('span');
-            s.className = 'slash';
-            d.appendChild(s);
-          }
-          if (h.pp || h.bp) {
-            const dot = document.createElement('span');
-            dot.className = 'pd';
-            d.appendChild(dot);
-          }
         }
         beadFrag.appendChild(d);
       }
@@ -1829,7 +1910,9 @@
     const visible = allCells.slice(-140);
     const maxC = visible.reduce((m, c) => Math.max(m, c.c), 0);
     const boardW = el.bigroad.clientWidth || 320;
-    const COLS = Math.max(9, Math.floor(boardW / 19));
+    const boardH = el.bigroad.clientHeight || 90;
+    // 정사각 칸: 행 높이(6행)를 한 칸 크기로 삼아 열 수를 정한다 (영상처럼 동그란 링)
+    const COLS = clamp(Math.floor(boardW / Math.max(11, boardH / 6)), 9, 40);
     const off = Math.max(0, maxC - (COLS - 1));
     const marks = new Map();
     for (const cell of visible) {
@@ -1851,19 +1934,24 @@
           d.dataset.pv = cell.winner === 'player' ? 'P' : 'B';
         }
         if (cell && !cell.preview) {
+          // 글자 없는 굵은 속 빈 링 (파랑 = 플레이어 · 빨강 = 뱅커)
           const rim = document.createElement('span');
           rim.className = 'rim';
-          rim.textContent = cell.winner === 'player' ? 'P' : 'B';
           d.appendChild(rim);
           if (cell.ties) {
             const s = document.createElement('span');
             s.className = 'slash';
-            s.style.opacity = String(Math.min(1, 0.55 + cell.ties * 0.25));
+            s.style.opacity = String(Math.min(1, 0.75 + cell.ties * 0.15));
             d.appendChild(s);
           }
-          if (cell.pp || cell.bp) {
+          if (cell.pp) {
             const dot = document.createElement('span');
-            dot.className = 'pd';
+            dot.className = 'pd pp';
+            d.appendChild(dot);
+          }
+          if (cell.bp) {
+            const dot = document.createElement('span');
+            dot.className = 'pd bp';
             d.appendChild(dot);
           }
         }
