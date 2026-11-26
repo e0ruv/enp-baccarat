@@ -9,8 +9,8 @@ squeeze, accounts, hidden admin (6160), GitHub sync panel, zero console errors a
 zero overflow at 390x844 and 1440x900.
 
 NEW: Evolution-style white road board (full 6-row grid, circular bead badges),
-photo dealer, 10 circular casino chips (1천~1억), 10억 table limit, and the
-auto-running live shoe (10s countdown → auto deal → settle → result hold →
+photo dealer, 10 circular casino chips (`1K`~`100M`, English K/M/B units), 10억 table
+limit, and the auto-running live shoe (10s countdown → auto deal → settle → result hold →
 clean table → next 10s round, paused while modals are open and restarted with a
 fresh road on a new shoe).
 
@@ -23,6 +23,7 @@ banners, Ask-the-road P/B next-cell preview, and one-tap-one-bet protection.
 import functools
 import http.server
 import os
+import re
 import socketserver
 import threading
 
@@ -451,10 +452,25 @@ def run_desktop(browser):
     check("side bets are two centred lines",
           all(abs(s["nC"]) <= 2 and abs(s["pC"]) <= 2 and s["twoLines"] for s in side), str(side))
 
-    # ── NEW: 10 circular casino chips (1천 ~ 1억)
+    # ── NEW: 10 circular casino chips — 영문 K / M / B 라벨 (1K ~ 100M)
     chips = page.evaluate("() => Array.from(document.querySelectorAll('#chipRow .chip')).map(c => Number(c.dataset.chip))")
     check("ten casino chips", chips == [1000, 5000, 10000, 50000, 100000, 500000, 1000000, 5000000, 10000000, 100000000],
           str(chips))
+    want_labels = ["1K", "5K", "10K", "50K", "100K", "500K", "1M", "5M", "10M", "100M"]
+    labels = page.evaluate("""() => Array.from(document.querySelectorAll('#chipRow .chip'))
+        .map(c => ({t: c.textContent.trim(), a: (c.getAttribute('aria-label') || '').trim()}))""")
+    check("chip tray reads in K / M / B",
+          [l["t"] for l in labels] == want_labels and [l["a"] for l in labels] == want_labels, str(labels))
+    check("no Korean 천/만/억 left on the chips",
+          re.search("[천만억]", page.inner_text("#chipRow")) is None, page.inner_text("#chipRow"))
+    check("chip line under the tray shows the selected chip in K/M/B",
+          page.inner_text("#chipAmount").strip() == "10K", page.inner_text("#chipAmount"))
+    chip_fit = page.evaluate("""() => Array.from(document.querySelectorAll('#chipRow .chip i')).map(i => ({
+        t: i.textContent, ink: i.offsetWidth,
+        inner: Math.round(i.parentElement.clientWidth * 0.6 * 10) / 10,
+        fs: getComputedStyle(i).fontSize}))""")
+    check("chip text fits inside the solid centre of every chip",
+          all(f["ink"] <= f["inner"] for f in chip_fit), str(chip_fit))
     chip_shape = page.evaluate("""() => {
       const c = document.querySelector('.chip');
       const r = c.getBoundingClientRect();
@@ -471,19 +487,29 @@ def run_desktop(browser):
     # 1억 칩으로 여러 번 베팅 (테이블 한도 10억)
     page.evaluate("window.__bac.state.balance = 3000000000; window.__bac.renderAll()")
     page.click('#chipRow .chip[data-chip="100000000"]')
-    check("1억 chip selected", page.evaluate("window.__bac.state.chip") == 100000000)
+    check("100M chip selected", page.evaluate("window.__bac.state.chip") == 100000000)
     page.click('[data-spot="player"]')
     page.click('[data-spot="player"]')
-    check("1억 chip places ₩2억", page.evaluate("window.__bac.state.bets.player") == 200000000,
+    check("100M chip places ₩2억", page.evaluate("window.__bac.state.bets.player") == 200000000,
           str(page.evaluate("window.__bac.state.bets.player")))
     badge = page.evaluate("""() => { const b = document.querySelector('.bet-chip[data-betchip="player"]');
+        const i = b.querySelector('i');
         return {cls: b.className, txt: b.textContent.trim(), round: getComputedStyle(b).borderRadius,
-                w: Math.round(b.getBoundingClientRect().width)}; }""")
-    check("bet badge is a chip", "tone-100000000" in badge["cls"] and badge["round"].startswith("50%") and badge["txt"] == "2억", str(badge))
+                w: Math.round(b.getBoundingClientRect().width),
+                ink: i.offsetWidth, inner: Math.round(b.clientWidth * 0.6 * 10) / 10}; }""")
+    check("bet badge is a chip and reads 200M",
+          "tone-100000000" in badge["cls"] and badge["round"].startswith("50%") and badge["txt"] == "200M", str(badge))
+    check("bet badge text fits inside the chip", badge["ink"] <= badge["inner"], str(badge))
     for _ in range(9):
         page.click('[data-spot="player"]')
-    check("stake stops at the ₩10억 table limit", page.evaluate("window.__bac.state.bets.player") == 1000000000,
+    check("stake stops at the 10억 table limit", page.evaluate("window.__bac.state.bets.player") == 1000000000,
           str(page.evaluate("window.__bac.state.bets.player")))
+    big_badge = page.evaluate("""() => { const b = document.querySelector('.bet-chip[data-betchip="player"]');
+        const i = b.querySelector('i');
+        return {txt: b.textContent.trim(), fs: getComputedStyle(i).fontSize,
+                ink: i.offsetWidth, inner: Math.round(b.clientWidth * 0.6 * 10) / 10}; }""")
+    check("1B betting chip reads 1B", big_badge["txt"] == "1B", str(big_badge))
+    check("1B betting chip text fits", big_badge["ink"] <= big_badge["inner"], str(big_badge))
     page.click('[data-spot="player"]')
     check("over-limit bet rejected", page.evaluate("window.__bac.state.bets.player") == 1000000000)
     tclick(page, "#clearBtn")
@@ -887,7 +913,7 @@ def run_desktop(browser):
     check("status bar swaps stake for '지난 우승'",
           win_probe["winline"] and win_probe["stakeHidden"] and win_probe["lastwin"] == "₩97,500", str(win_probe))
     check("winning chip shows the payout in the amount colour",
-          bool(win_probe["chip"]) and win_probe["chip"]["label"] == "97k+" and
+          bool(win_probe["chip"]) and win_probe["chip"]["label"] == "97K+" and
           win_probe["chip"]["bg"] == "#1B8A3A", str(win_probe["chip"]))
     check("ribbon replaces the centre winner badge", float(win_probe["badgeHidden"]) < 0.2, win_probe["badgeHidden"])
     page.wait_for_function("window.__bac.state.phase === 'betting'", timeout=8000)

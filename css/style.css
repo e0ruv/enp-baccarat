@@ -1155,6 +1155,9 @@ body[data-mode="snow"] .bonus-rail { border-color: rgba(169, 220, 242, .32); }
   position: relative; z-index: 2; font-style: normal;
   font-size: 9px; font-weight: 800; color: var(--c-ink);
 }
+.drag-chip i.ln2 { font-size: 10px; }
+.drag-chip i.ln3 { font-size: 9px; letter-spacing: -.03em; }
+.drag-chip i.ln4 { font-size: 7.8px; letter-spacing: -.05em; }
 .mat-zone.is-move-src { filter: brightness(.72) saturate(.7); }
 .mat-zone.is-move-ok { box-shadow: inset 0 0 0 2px rgba(255, 226, 150, .95), 0 0 20px rgba(255, 200, 90, .55); }
 .mat-zone.is-drop { box-shadow: inset 0 0 0 2px rgba(120, 255, 170, .95), 0 0 24px rgba(80, 240, 150, .5); }
@@ -1248,6 +1251,10 @@ body[data-mode="snow"] .bonus-rail { border-color: rgba(169, 220, 242, .32); }
   color: var(--c-ink); letter-spacing: -.03em;
   text-shadow: 0 1px 2px rgba(0, 0, 0, .28);
 }
+/* K·M·B 라벨 길이별 크기 — 글자가 작은 원 안에 들어가게 */
+.chip i.ln2 { font-size: 8.5px; }
+.chip i.ln3 { font-size: 7.6px; letter-spacing: -.04em; }
+.chip i.ln4 { font-size: 6.5px; letter-spacing: -.05em; }
 .chip.is-active {
   transform: translateY(-2px) scale(1.05);
   outline: 2px solid #EBD08A;
@@ -2082,9 +2089,11 @@ body[data-mode="snow"] .bonus-rail { border-color: rgba(169, 220, 242, .32); }
   width: 32px; height: 32px;
 }
 .bet-chip i { font-family: var(--font); font-size: 8px; font-weight: 800; letter-spacing: -.03em; }
-[data-chip="500000"] i, [data-chip="1000000"] i, [data-chip="5000000"] i,
-[data-chip="10000000"] i, [data-chip="100000000"] i { font-size: 7px; letter-spacing: -.05em; }
-[data-chip="100000"] i { font-size: 7.5px; letter-spacing: -.05em; }
+/* 매트 칩 K·M·B 라벨 — 길이별 크기 */
+.bet-chip i.ln2 { font-size: 8.5px; }
+.bet-chip i.ln3 { font-size: 7.6px; letter-spacing: -.04em; }
+.bet-chip i.ln4 { font-size: 6.5px; letter-spacing: -.05em; }
+.bet-chip i.ln5 { font-size: 5.6px; letter-spacing: -.06em; }
 /* 당첨 칩: 금액대 색 그대로 빛나며 당첨 금액 표시 (칸 오른쪽 아래) */
 .bet-chip.is-win {
   left: auto; right: 5px; top: auto; bottom: 4px;
@@ -2092,7 +2101,7 @@ body[data-mode="snow"] .bonus-rail { border-color: rgba(169, 220, 242, .32); }
   animation: chipWinGlow 1.1s ease-in-out infinite;
   z-index: 6;
 }
-.bet-chip.is-win i { font-size: 8px; font-weight: 900; letter-spacing: -.04em; }
+.bet-chip.is-win i { font-weight: 900; letter-spacing: -.04em; }
 @keyframes chipWinGlow {
   0%, 100% { box-shadow: 0 0 0 2px rgba(255, 255, 255, .55), 0 0 16px 2px rgba(255, 236, 170, .55), 0 8px 16px -6px rgba(0, 0, 0, .8); }
   50% { box-shadow: 0 0 0 3px rgba(255, 255, 255, .85), 0 0 26px 6px rgba(255, 236, 170, .8), 0 8px 16px -6px rgba(0, 0, 0, .8); }

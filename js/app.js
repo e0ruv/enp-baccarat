@@ -33,22 +33,30 @@
   };
   const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
   const signed = (n) => Math.round(n).toLocaleString('ko-KR');
+  /** 칩 금액 표기 — 영문 K / M / B (1K · 10K · 100K · 1M · 100M · 1B) */
   const chipLabel = (n) => {
-    const v = Math.round(n);
-    if (v >= 100000000) return (v / 100000000).toFixed(v % 100000000 ? 1 : 0) + '억';
-    if (v >= 10000) return (v / 10000).toFixed(v % 10000 ? 1 : 0).replace(/\.0$/, '') + '만';
-    if (v >= 1000) return Math.round(v / 1000) + '천';
+    const v = Math.round(Math.abs(n));
+    const unit = (div, suffix) => {
+      const r = Math.round((v / div) * 10) / 10;
+      return (Number.isInteger(r) ? String(r) : r.toFixed(1)) + suffix;
+    };
+    if (v >= 1000000000) return unit(1000000000, 'B');
+    if (v >= 1000000) return unit(1000000, 'M');
+    if (v >= 1000) return unit(1000, 'K');
     return String(v);
   };
 
-  /** 당첨 칩 표기 — 영상처럼 97,500 → '97k+' */
+  /** 당첨 칩 표기 — 영상처럼 97,500 → '97K+' (100M+ · 1.5B+) */
   const winChipLabel = (n) => {
-    const v = Math.round(n);
-    if (v >= 100000000) return (v / 100000000).toFixed(v % 100000000 ? 1 : 0) + '억+';
-    if (v >= 10000) return Math.floor(v / 1000) + 'k+';
-    if (v >= 1000) return Math.floor(v / 100) / 10 + 'k+';
+    const v = Math.round(Math.abs(n));
+    if (v >= 1000000000) return (Math.floor(v / 100000000) / 10) + 'B+';
+    if (v >= 1000000) return Math.floor(v / 1000000) + 'M+';
+    if (v >= 1000) return Math.floor(v / 1000) + 'K+';
     return v + '+';
   };
+
+  /** 칩 글씨가 원 안에 들어가도록 길이별 크기 클래스 (ln2 · ln3 · ln4 · ln5) */
+  const chipInk = (text) => `<i class="ln${text.length}">${text}</i>`;
 
   const SPOT_LABEL = {
     player: '플레이어',
@@ -402,7 +410,7 @@
   function renderBetState() {
     const stake = totalStake();
     const fee = totalFee();
-    el.chipAmount.textContent = S.chip.toLocaleString('ko-KR');
+    el.chipAmount.textContent = chipLabel(S.chip);
     $$('.chip', el.chipRow).forEach((c) => c.classList.toggle('is-active', Number(c.dataset.chip) === S.chip));
 
     el.totalStake.textContent = won(stake);
@@ -421,7 +429,7 @@
       const amt = S.bets[spot];
       if (chip) {
         chip.className = 'bet-chip' + (amt > 0 ? ' on ' + chipToneOf(amt) : '');
-        chip.innerHTML = amt ? `<i>${chipLabel(amt)}</i>` : '';
+        chip.innerHTML = amt ? chipInk(chipLabel(amt)) : '';
       }
       const spotEl = $(`[data-spot="${spot}"]`);
       if (spotEl) spotEl.classList.toggle('has-bet', amt > 0);
@@ -1772,7 +1780,7 @@
       const chip = $(`.bet-chip[data-betchip="${item.spot}"]`);
       if (!chip) continue;
       chip.className = 'bet-chip on is-win ' + chipToneOf(item.returned);
-      chip.innerHTML = `<i>${winChipLabel(item.returned)}</i>`;
+      chip.innerHTML = chipInk(winChipLabel(item.returned));
     }
     if (window.FX) FX.burst();
     fallOnPanel(el.winCelebrate, settled.bestMultiplier > 1 ? 18 : 8);
@@ -2172,7 +2180,7 @@
       ghostEl.className = 'drag-chip';
       document.body.appendChild(ghostEl);
     }
-    ghostEl.textContent = label || '';
+    ghostEl.innerHTML = label ? chipInk(label) : '';
     return ghostEl;
   }
 
