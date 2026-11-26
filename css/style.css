@@ -2109,3 +2109,26 @@ body[data-mode="snow"] .bonus-rail { border-color: rgba(169, 220, 242, .32); }
 
 /* ── 8 · 매트 행 비율 — 영상처럼 1행(플레이어·무·뱅커)을 조금 더 크게 ── */
 .mat-row.r1 { flex: 2.05 1 0; }
+
+/* ── 9 · 짧은 화면(iPhone SE 등) — 카드·배지가 겹치지 않게 압축 ── */
+@media (max-height: 740px) and (max-width: 899px) {
+  .score-badge { width: 38px; height: 38px; font-size: 20px; }
+  .sb-p { left: 4px; }
+  .sb-b { right: 4px; }
+  .round-clock { width: 42px; height: 42px; }
+  .rc-num { font-size: 20px; }
+  .hand { top: 6%; }
+  .felt-label { top: 3%; font-size: 9px; }
+  .roadboard { height: 126px; }
+  .betting-mat { height: 156px; }
+  :root { --card-w: clamp(26px, 8vw, 38px); }
+}
+@media (max-height: 660px) and (max-width: 899px) {
+  .score-badge { width: 32px; height: 32px; font-size: 17px; border-radius: 5px; }
+  .felt-label { display: none; }
+  .hand { top: 4%; }
+  .roadboard { height: 112px; }
+  .betting-mat { height: 144px; }
+  .bonus-rail { display: none; }
+  :root { --card-w: clamp(24px, 7.4vw, 32px); }
+}
