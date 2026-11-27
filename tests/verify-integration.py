@@ -371,12 +371,12 @@ def capture_previews(browser):
     page.click('[data-spot="banker"]')
     page.click("#dealBtn")
     try:
-        page.wait_for_function("window.__bac.state.phase === 'result'", timeout=20000)
-        page.wait_for_timeout(700)
+        page.wait_for_function("document.querySelectorAll('#playerCards .card, #bankerCards .card').length >= 4", timeout=15000)
+        page.wait_for_timeout(450)
         page.screenshot(path=os.path.join(ROOT, "preview-integrated-baccarat.png"))
     except Exception:
         page.screenshot(path=os.path.join(ROOT, "preview-integrated-baccarat.png"))
-    page.wait_for_function("window.__bac.state.phase === 'betting'", timeout=20000)
+    page.wait_for_function("window.__bac.state.phase === 'betting'", timeout=25000)
 
     page.goto(BJ, wait_until="load")
     page.wait_for_function("window.__APP_READY__ === true", timeout=20000)
