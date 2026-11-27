@@ -177,18 +177,38 @@
   let resultTimer = null;
   let celebTimer = null;
 
+  // 마지막으로 저장소와 맞춰 본 잔액 — 블랙잭 탭과 동시에 열려 있어도 손익을 덮어쓰지 않기 위한 기준값
+  let lastSavedBalance = S.balance;
+
   function save() {
-    const p = activeProfile();
-    p.balance = S.balance;
-    p.stats = S.stats;
-    p.history = S.history.slice(-240);
-    p.lastBets = S.lastBets;
     DB.mode = S.mode;
     DB.chip = S.chip;
     DB.settings = S.settings;
     try {
-      if (ACC) ACC.save();
-      else localStorage.setItem(DB_KEY, JSON.stringify(DB));
+      if (ACC) {
+        const res = ACC.commit(DB.current || 'guest', {
+          balance: S.balance,
+          baseline: lastSavedBalance,
+          patch: (p) => {
+            p.stats = S.stats;
+            p.history = S.history.slice(-240);
+            p.lastBets = S.lastBets;
+          },
+          meta: { mode: S.mode, chip: S.chip, settings: S.settings }
+        });
+        lastSavedBalance = res.balance;
+        if (res.balance !== S.balance) {
+          S.balance = res.balance;
+          renderBalance();
+        }
+        return;
+      }
+      const p = activeProfile();
+      p.balance = S.balance;
+      p.stats = S.stats;
+      p.history = S.history.slice(-240);
+      p.lastBets = S.lastBets;
+      localStorage.setItem(DB_KEY, JSON.stringify(DB));
     } catch (err) { /* storage may be unavailable */ }
   }
 
@@ -2609,6 +2629,7 @@
 
   function applyProfile(p) {
     S.balance = p.balance;
+    lastSavedBalance = p.balance;
     S.stats = p.stats || freshStats();
     S.history = Array.isArray(p.history) ? p.history : [];
     S.lastBets = p.lastBets || null;
@@ -2808,18 +2829,41 @@
     if (!target) return;
     const typed = override != null ? Math.abs(Math.round(override))
       : Math.abs(Math.round(Number(String(el.admAmount.value || '').replace(/[^0-9]/g, '')) || 0));
-    if (op === 'plus') target.balance = Math.round(target.balance + typed);
-    else if (op === 'minus') target.balance = Math.max(0, Math.round(target.balance - typed));
-    else target.balance = START_BALANCE;
+    const cur = target.balance;
+    let next;
+    if (op === 'plus') next = Math.round(cur + typed);
+    else if (op === 'minus') next = Math.max(0, Math.round(cur - typed));
+    else next = START_BALANCE;
 
-    if (uid === (DB.current || 'guest')) S.balance = target.balance;
-    save();
+    const activeId = DB.current || 'guest';
+    if (uid === activeId) {
+      // 지금 세션 — 잔액 차이만큼 저장 (다른 탭의 손익을 덮어쓰지 않음)
+      S.balance = next;
+      save();
+    } else if (ACC) {
+      // 다른 회원 — 그 회원의 잔액만 절대값으로 병합 저장
+      ACC.commit(activeId, {
+        balance: S.balance,
+        baseline: lastSavedBalance,
+        patch: (p) => {
+          p.stats = S.stats;
+          p.history = S.history.slice(-240);
+          p.lastBets = S.lastBets;
+        },
+        others: [{ uid, balance: next }],
+        meta: { mode: S.mode, chip: S.chip, settings: S.settings }
+      });
+      lastSavedBalance = S.balance;
+    } else {
+      target.balance = next;
+      save();
+    }
     renderBalance();
     renderAccount();
     renderAdmin();
     pulseNode($('#balancePill'));
     window.Sound && Sound.chip();
-    toast(`${uid === 'guest' ? '게스트' : (target.nick || uid)} · ${won(target.balance)}`);
+    toast(`${uid === 'guest' ? '게스트' : (target.nick || uid)} · ${won(next)}`);
   }
 
   /* ───────────── github sync (optional) ───────────── */
@@ -2926,7 +2970,8 @@
       S.stats = p.stats || freshStats();
       S.history = p.history || [];
       S.lastBets = p.lastBets || null;
-      save();
+      lastSavedBalance = S.balance;
+      if (ACC) ACC.save(); else save();   // 회원 목록 전체를 그대로 올린 경우
       renderAll();
       renderAccount();
       renderAdmin();
@@ -2981,6 +3026,7 @@
         if (kind !== 'external') return;
         const p = activeProfile();
         S.balance = p.balance;
+        lastSavedBalance = p.balance;
         if (S.phase === 'betting') {
           S.stats = p.stats || S.stats;
           S.history = Array.isArray(p.history) ? p.history : S.history;

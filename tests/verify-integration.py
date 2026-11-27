@@ -363,6 +363,52 @@ def leave_flow(browser):
     ctx.close()
 
 
+def two_tab_flow(browser):
+    """바카라 탭과 블랙잭 탭을 동시에 열어 두어도 한쪽 저장이 다른 쪽 손익을 지우지 않는지."""
+    ctx, page, errors = open_page(browser, {"width": 1280, "height": 800})
+    bac_ready(page)
+    second = ctx.new_page()
+    second_errors = []
+    second.on("pageerror", lambda e: second_errors.append(str(e)))
+    second.on("console", lambda m: second_errors.append(m.text) if m.type == "error" else None)
+    second.goto(BJ, wait_until="load")
+    second.wait_for_function("window.__APP_READY__ === true", timeout=20000)
+    second.evaluate("() => { const s = document.getElementById('splash'); if (s) s.remove(); }")
+    second.wait_for_timeout(300)
+
+    start = page.evaluate("window.__bac.state.balance")
+    # 바카라: 5만 베팅 (바카라 탭은 계속 열려 있음)
+    page.click('#chipRow .chip[data-chip="50000"]')
+    page.click('[data-spot="banker"]')
+    page.wait_for_timeout(200)
+    # 블랙잭: 5만 베팅 후 블랙잭 승리 (+7.5만 지급)
+    second.evaluate("window.__bc.setChip(50000); window.__bc.placeBet('main')")
+    second.evaluate("window.__bc.rig(['As','9h','Kh','5c'])")
+    second.evaluate("window.__bc.deal()")
+    second.wait_for_function("window.__bc.state.phase === 'settle'", timeout=20000)
+    second.wait_for_timeout(400)
+    bj_balance = second.evaluate("window.__bc.state.balance")
+    check("blackjack win is on the shared balance", bj_balance == start - 50000 + 75000, str(bj_balance))
+
+    # 바카라 라운드가 정산·저장된 뒤에도 블랙잭 손익이 남아 있는지
+    page.wait_for_function("window.__bac.state.phase === 'betting'", timeout=30000)
+    page.wait_for_timeout(600)
+    bac_balance = page.evaluate("window.__bac.state.balance")
+    bj_after = second.evaluate("window.__bc.state.balance")
+    stored = page.evaluate(f"() => JSON.parse(localStorage.getItem('{DB_KEY}'))")
+    guest_or_user = stored["current"] or "guest"
+    stored_balance = stored["guest"]["balance"] if guest_or_user == "guest" else stored["users"][guest_or_user]["balance"]
+    check("baccarat save keeps the blackjack win", bac_balance >= start - 50000 + 75000,
+          f"{bac_balance} vs {start - 50000 + 75000}")
+    check("both tabs agree on the balance", bac_balance == bj_after,
+          f"baccarat {bac_balance} / blackjack {bj_after}")
+    check("stored balance matches both tabs", stored_balance == bac_balance,
+          f"stored {stored_balance} / tabs {bac_balance}")
+    check("no console errors with two tabs open", not errors and not second_errors,
+          " | ".join((errors + second_errors)[:4]))
+    ctx.close()
+
+
 def capture_previews(browser):
     """두 테이블의 최신 화면을 한 판 진행한 상태로 남깁니다."""
     ctx, page, errors = open_page(browser, {"width": 1440, "height": 900})
@@ -400,6 +446,7 @@ def main():
         realtime_flow(browser)
         guest_flow(browser)
         leave_flow(browser)
+        two_tab_flow(browser)
         capture_previews(browser)
         browser.close()
     srv.shutdown()

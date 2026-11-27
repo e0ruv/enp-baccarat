@@ -138,6 +138,7 @@
       if (typeof bj.motion === 'boolean') state.motion = bj.motion;
       if (typeof bj.autoNext === 'boolean') state.autoNext = bj.autoNext;
       if (Number.isFinite(bj.chip) && bj.chip >= MIN_BET) state.chip = bj.chip;
+      lastSavedBalance = state.balance;
       return;
     }
     try {
@@ -152,11 +153,14 @@
       if (Array.isArray(d.history)) state.history = d.history.slice(0, 40);
       if (d.stats && typeof d.stats === 'object') Object.assign(state.stats, d.stats);
     } catch (e) { /* ignore */ }
+    lastSavedBalance = state.balance;
   }
-  function save() {
-    if (ACC) {
-      const p = ACC.profile();
-      p.balance = Math.max(0, Math.round(state.balance));
+  // 마지막으로 저장소와 맞춰 본 잔액 — 바카라 탭과 동시에 열려 있어도 손익을 덮어쓰지 않기 위한 기준값
+  let lastSavedBalance = state.balance;
+
+  /** 이 화면의 기록·설정을 공용 프로필에 써 넣는 함수 */
+  function bjPatch() {
+    return (p) => {
       if (!p.bj || typeof p.bj !== 'object') p.bj = {};
       p.bj.history = state.history.slice(0, 40);
       p.bj.stats = state.stats;
@@ -165,7 +169,22 @@
       p.bj.autoNext = state.autoNext;
       p.bj.chip = state.chip;
       p.bj.lastBets = state.lastBets;
-      ACC.save();
+      if (state.nickname) p.nick = state.nickname;
+    };
+  }
+
+  function save() {
+    if (ACC) {
+      const res = ACC.commit(ACC.db.current || 'guest', {
+        balance: state.balance,
+        baseline: lastSavedBalance,
+        patch: bjPatch()
+      });
+      lastSavedBalance = res.balance;
+      if (res.balance !== state.balance) {
+        state.balance = res.balance;
+        renderBalance();
+      }
       return;
     }
     try {
@@ -1541,18 +1560,34 @@
   /** 관리자 잔액 조정 — 공용 계정 저장소에 적용하고 현재 세션이면 테이블에도 반영 */
   function adjustMember(uid, op, override) {
     if (!ACC) return;
+    const target = ACC.profileOf(uid);
+    if (!target) return;
     const typed = override != null ? Math.abs(Math.round(override))
       : Math.abs(Math.round(Number(String($('#admAmount').value || '').replace(/[^0-9]/g, '')) || 0));
-    const p = ACC.adjust(uid, op, typed);
-    if (!p) return;
-    if (uid === (ACC.db.current || 'guest')) {
-      state.balance = p.balance;
-      render();
+    const cur = target.balance;
+    let next;
+    if (op === 'plus') next = Math.round(cur + typed);
+    else if (op === 'minus') next = Math.max(0, Math.round(cur - typed));
+    else next = START_BALANCE;
+
+    const activeId = ACC.db.current || 'guest';
+    if (uid === activeId) {
+      state.balance = next;
+      save();
+    } else {
+      ACC.commit(activeId, {
+        balance: state.balance,
+        baseline: lastSavedBalance,
+        patch: bjPatch(),
+        others: [{ uid, balance: next }]
+      });
+      lastSavedBalance = state.balance;
     }
+
     SND.chip();
+    render();
     renderAdmin();
-    if ($('#adminBack') && !$('#adminBack').hidden) $('#admBalance').textContent = money(state.balance);
-    toast((uid === 'guest' ? '게스트' : (p.nick || p.id)) + ' · ' + money(p.balance));
+    toast((uid === 'guest' ? '게스트' : (target.nick || target.id || uid)) + ' · ' + money(next));
   }
 
   function openPin() {

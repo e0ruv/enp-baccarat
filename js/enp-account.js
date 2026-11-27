@@ -152,7 +152,7 @@
 
   const db = normalize(readRaw());
 
-  /* ── 저장 / 구독 ─────────────────────────────────────── */
+  /* ── 저장 / 병합 저장 / 구독 ─────────────────────────── */
   const listeners = new Set();
   let writeAt = 0;
 
@@ -161,6 +161,44 @@
       localStorage.setItem(DB_KEY, JSON.stringify(db));
       writeAt = Date.now();
     } catch (err) { /* storage may be unavailable */ }
+  }
+
+  /**
+   * 앱의 변경을 저장합니다.
+   * 다른 탭이 그 사이에 저장했다면 그 값을 먼저 읽어와 합칩니다 —
+   * 잔액은 (내 잔액 − 내가 마지막으로 본 잔액) 만큼만 더하므로
+   * 바카라 탭과 블랙잭 탭이 동시에 열려 있어도 서로의 손익을 지우지 않습니다.
+   *
+   * @param {string} uid 지금 세션의 프로필 id ('guest' 포함)
+   * @param {object} opts { balance, baseline, patch(profile), others:[{uid,balance,patch}], meta }
+   * @returns {{balance:number, profile:object}}
+   */
+  function commit(uid, opts) {
+    const o = opts || {};
+    const raw = readRaw();
+    if (raw) replace(normalize(raw, { noMigrate: true }));
+
+    const p = profileOf(uid) || db.guest;
+    let merged = p.balance;
+    if (typeof o.balance === 'number' && Number.isFinite(o.balance)) {
+      const base = (typeof o.baseline === 'number' && Number.isFinite(o.baseline)) ? o.baseline : p.balance;
+      const delta = Math.round(o.balance - base);
+      merged = Math.max(0, Math.round(p.balance + delta));
+      p.balance = merged;
+    }
+    if (typeof o.patch === 'function') o.patch(p);
+
+    for (const ch of (o.others || [])) {
+      const q = profileOf(ch.uid);
+      if (!q) continue;
+      if (typeof ch.balance === 'number') q.balance = Math.max(0, Math.round(ch.balance));
+      if (typeof ch.patch === 'function') ch.patch(q);
+    }
+
+    if (o.meta && typeof o.meta === 'object') Object.assign(db, o.meta);
+
+    save();
+    return { balance: merged, profile: p };
   }
 
   function emit(kind) {
@@ -267,46 +305,6 @@
     return profile();
   }
 
-  /* ── 잔액 ───────────────────────────────────────────── */
-  function setBalance(uid, value) {
-    const p = profileOf(uid || (db.current || 'guest'));
-    if (!p) return null;
-    p.balance = Math.max(0, Math.round(Number(value) || 0));
-    save();
-    return p;
-  }
-
-  function adjust(uid, op, amount) {
-    const p = profileOf(uid || (db.current || 'guest'));
-    if (!p) return null;
-    const val = Math.abs(Math.round(Number(amount) || 0));
-    if (op === 'plus') p.balance = Math.round(p.balance + val);
-    else if (op === 'minus') p.balance = Math.max(0, Math.round(p.balance - val));
-    else p.balance = START_BALANCE;
-    save();
-    return p;
-  }
-
-  function refill(uid, amount) {
-    const p = profileOf(uid || (db.current || 'guest'));
-    if (!p) return null;
-    p.balance = Math.round(p.balance + (Number(amount) || START_BALANCE));
-    save();
-    return p;
-  }
-
-  function resetProfile(uid) {
-    const p = profileOf(uid || (db.current || 'guest'));
-    if (!p) return null;
-    p.balance = START_BALANCE;
-    p.stats = freshStats();
-    p.history = [];
-    p.lastBets = null;
-    p.bj = freshBj();
-    save();
-    return p;
-  }
-
   function members() {
     const rows = [];
     const cur = db.current || 'guest';
@@ -327,6 +325,7 @@
     ADMIN_PIN,
     db,
     save,
+    commit,
     subscribe,
     profile,
     profileOf,
@@ -335,10 +334,6 @@
     signup,
     login,
     logout,
-    setBalance,
-    adjust,
-    refill,
-    resetProfile,
     members,
     freshBj,
     freshStats
