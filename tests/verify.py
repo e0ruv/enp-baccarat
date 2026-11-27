@@ -34,7 +34,7 @@ import threading
 
 from playwright.sync_api import sync_playwright
 
-ROOT = "/workspace/baccarat-sim"
+ROOT = os.environ.get("ENP_SITE", "/workspace/baccarat-sim")
 PORT = 8171
 BIN = "/workspace/.pw-browsers/chromium_headless_shell-1255/chrome-headless-shell-linux64/chrome-headless-shell"
 URL = f"http://127.0.0.1:{PORT}/index.html"
@@ -433,7 +433,12 @@ def run_desktop(browser):
     # ── default table
     check("default table is blossom", page.evaluate("document.body.dataset.mode") == "sakura",
           page.evaluate("document.body.dataset.mode"))
-    check("three mode tabs only", page.eval_on_selector_all(".mode-btn", "e=>e.length") == 3)
+    check("three baccarat mode tabs + blackjack tab", page.eval_on_selector_all(".mode-btn", "e=>e.length") == 4,
+          str(page.eval_on_selector_all(".mode-btn", "e=>e.length")))
+    check("blackjack tab links into the site",
+          page.get_attribute("#navBlackjack", "href").strip() == "blackjack/")
+    check("blackjack tab is marked as another table",
+          page.eval_on_selector("#navBlackjack", "e=>e.classList.contains('mode-nav') && !e.classList.contains('is-active')"))
     check("no lightning tab", page.eval_on_selector_all('.mode-btn[data-mode="lightning"]', "e=>e.length") == 0)
 
     # ── 9 betting zones

@@ -1,8 +1,39 @@
-# ENP BACCARAT — 가상 머니 모의 바카라
+# ENP BACCARAT — 가상 머니 모의 카지노 (바카라 + 블랙잭)
 
-실제 화폐를 사용하지 않는 **가상 머니 전용** 바카라 시뮬레이터입니다.
+실제 화폐를 사용하지 않는 **가상 머니 전용** 카지노 시뮬레이터입니다.
 실제 라이브 바카라(Stake · Evolution `Korean Speed Baccarat`)의 모바일 세로 화면 구성을 기준으로
-**딜러 스튜디오 · 출목표 · 베팅 매트** 3단을 한 화면에 담았습니다.
+**딜러 스튜디오 · 출목표 · 베팅 매트** 3단을 한 화면에 담았고, 같은 사이트 `/blackjack/` 에
+**블랙잭 테이블**이 함께 있습니다. 두 게임은 **회원 · 잔액 · 6160 관리자를 그대로 공유**합니다.
+
+## 테이블 이동 (한 사이트)
+
+상단 바 가운데의 네 칸 **`🚀 스피드` · `🌸 벚꽃` · `❄️ 눈꽃` · `♠ 블랙잭`** 으로 오갑니다.
+
+| 링크 | 여는 화면 |
+|---|---|
+| `index.html?mode=speed` · `?mode=sakura` · `?mode=snow` | 해당 바카라 테이블로 바로 시작 |
+| `blackjack/` | 블랙잭 테이블 |
+
+- 좁은 폰(≤560px)에서는 탭이 이모지 + 금색 선택 표시로 압축되고, 320px 폭에서도 겹치지 않습니다.
+- 테이블을 옮길 때(이동·새로고침) **아직 정산되지 않은 베팅은 잔액으로 돌려받습니다.**
+- 블랙잭에서 딴/잃은 금액, `6160` 관리자의 잔액 조정, 로그인/로그아웃이
+  반대편 테이블에 즉시(다른 탭이면 storage 이벤트로, 이동하면 새로고침 후) 반영됩니다.
+
+## 공용 계정 (`js/enp-account.js`)
+
+두 페이지가 같은 localStorage 키 **`enp_baccarat_accounts_v1`** 하나만 씁니다.
+
+```
+{ users: { [id]: { id, nick, pin, balance, stats, history, lastBets, bj, createdAt } },
+  current, guest, settings, chip, mode, admin, bjMigrated }
+```
+
+- `current` = 지금 로그인한 회원, 없으면 `guest`. 잔액은 항상 `profile.balance` 하나입니다.
+- `bj` = 그 회원의 블랙잭 기록·설정(라운드 전적, 최근 기록, 사운드/모션/자동 진행, 선택 칩).
+- 예전 블랙잭 단독 저장소(`enp-blackjack-v1`)와 아주 첫 바카라 저장소(`enp_baccarat_v1`)는
+  처음 한 번 게스트 프로필로 흡수하고, 원본 키는 지우지 않습니다.
+- 회원가입 · 로그인 · PIN 해시(SHA-256) · 잔액 조정은 모두 이 모듈이 처리하므로
+  바카라와 블랙잭의 계정 동작이 완전히 같습니다.
 
 ## 실행
 
@@ -170,8 +201,8 @@ python3 -m http.server 8000
 - 빅윈 연출: 배수 승리 시 골드 연출 + `+₩` 배너
 - 출목표: 빅로드 · 중국점 1·2·3군 · 비드로드 · 통계 · 최근 기록(데스크톱)
 - Web Audio 합성 사운드 (칩·카드·당첨·테마음), 음소거 지원
-- 계정: 아이디 + PIN 회원가입/로그인, 게스트 즉시 플레이, 계정별 잔액·기록 저장(localStorage)
-- 히든 관리자: 로고 더블클릭/더블탭 → PIN `6160` → 회원 목록, 잔액 +/−·초기화, GitHub 동기화(선택)
+- 계정: 아이디 + PIN 회원가입/로그인, 게스트 즉시 플레이, 계정별 잔액·기록 저장(localStorage) — **블랙잭과 공용**
+- 히든 관리자: 로고 더블클릭/더블탭 → PIN `6160` → 회원 목록, 잔액 +/−·초기화, GitHub 동기화(선택) — **양쪽 페이지 동일**
 - 반응형: 모바일 세로(390×844) 3단 단일 화면 / 데스크톱(1440×900) 좌우 2단
 
 ## 파일 구조
@@ -182,12 +213,21 @@ baccarat-sim/
   assets/dealer.png    # 딜러 일러스트 원본 (고해상도)
   assets/dealer.jpg    # 페이지가 쓰는 경량 버전 (1100px, ~230KB)
   css/style.css
+  js/enp-account.js # ★ 두 게임 공용 계정 · 잔액 저장소 (가입/로그인/관리자 조정/탭 간 동기화)
   js/engine.js     # 8덱 슈, 푼토방코 룰, 보너스 카드, 사이드 베팅 정산, 중국점 로드
   js/audio.js      # Web Audio 사운드
   js/fx.js         # 벚꽃·눈꽃·스피드 파티클
-  js/app.js        # UI · 상태 · 계정 · 관리자 · 베팅 이동 · 자동 진행 타이머
-  tests/verify.py  # Playwright 검증 (데스크톱 1440×900 / 모바일 390×844)
-  tests/shots.py   # 미리보기 캡처 (preview-mobile · preview-celebration · preview-road)
+  js/app.js        # UI · 상태 · 계정 화면 · 관리자 · 베팅 이동 · 자동 진행 타이머
+  blackjack/       # ★ 블랙잭 테이블 (같은 계정 모듈을 ../js/enp-account.js 로 씁니다)
+    index.html
+    assets/dealer.jpg · dealer.png
+    css/style.css
+    js/engine.js   # 8덱 슈, 3:2, S17, 스플릿·더블·인슈어런스, 사이드 베팅 4종
+    js/audio.js
+    js/app.js      # UI · 상태 · 공용 계정 화면 · 관리자 회원 목록
+  tests/verify.py             # 바카라 Playwright 검증 (데스크톱 1440×900 / 모바일 390×844)
+  tests/verify-integration.py # 통합 E2E (탭 이동 · 공용 계정 · 관리자 잔액 · 실시간 동기화)
+  tests/shots.py              # 미리보기 캡처
   preview-*.png
 ```
 
@@ -198,7 +238,7 @@ LD_LIBRARY_PATH=/workspace/.libs/usr/lib/x86_64-linux-gnu \
   python3 tests/verify.py
 ```
 
-262개 체크: 스플래시, 3개 테이블 전환, 3단 구도·세로 배치, 9개 베팅 칸과 배당 표기,
+`tests/verify.py` — 268개 체크: 스플래시, 3개 테이블 전환, 3단 구도·세로 배치, 9개 베팅 칸과 배당 표기,
 베팅·칩 배지, **드래그/롱프레스 베팅 이동 + 실행 취소**, 엔진 대조 정산(사이드 베팅 전 종류),
 미니 카드·점수 배지·결과 배지, **흰색 출목표 격자·원형 비드로드·중국점**, 보너스 라운드·라이브 배수·빅윈,
 쪼기, 계정 가입/로그인/로그아웃, 관리자 6160 잔액 조정, GitHub 동기화 UI,
@@ -210,6 +250,23 @@ LD_LIBRARY_PATH=/workspace/.libs/usr/lib/x86_64-linux-gnu \
 **카드마다 점수 배지가 즉시 튀며 합산**, **승리 배지·잃은 라운드 시트 없음**,
 **다음 라운드 테이블 정리**, **낙화 파티클(존·배너·시트)**, **한 탭=한 베팅**,
 viewport·touch-action·dblclick 줌 방지, 콘솔 오류 0, 가로/세로 오버플로 0.
+
+```bash
+LD_LIBRARY_PATH=/workspace/.libs/usr/lib/x86_64-linux-gnu \
+  python3 tests/verify-integration.py
+```
+
+`tests/verify-integration.py` — 114개 체크: 1440×900 · 390×844(iPhone 16 Pro) · 844×390 · 360×640 에서
+두 페이지 모두 콘솔 오류 0 · 오버플로 0 · 4개 탭 겹침 없음, 탭 이동(각 `?mode=` 링크), 가입 → 블랙잭 로그인 상태 ·
+잔액, 블랙잭 3:2 정산이 바카라 잔액에 반영, 양쪽 `6160` 관리자 잔액 조정 상호 반영, 로그아웃/로그인 전파,
+저장 키가 하나인지, 다른 탭에서의 충전이 열려 있는 바카라 탭에 실시간 반영, 테이블 이동 시 미정산 베팅 환급.
+
+블랙잭 자체 검증(엔진 룰 3:2 · S17 · 스플릿 · 더블 · 인슈어런스 · 사이드 베팅 4종, UI 133개 체크):
+
+```bash
+LD_LIBRARY_PATH=/workspace/.libs/usr/lib/x86_64-linux-gnu \
+  python3 /workspace/blackjack-sim/tests/verify.py   # 통합 사이트의 /blackjack/ 을 검증합니다
+```
 
 ## 참고
 

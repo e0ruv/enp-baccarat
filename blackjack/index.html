@@ -1,0 +1,490 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+<meta name="theme-color" content="#07090A" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+<meta name="format-detection" content="telephone=no" />
+<meta name="description" content="가상 머니 전용 모의 블랙잭. 바카라와 같은 계정 · 같은 잔액. 8덱 슈, 스플릿 · 더블다운 · 인슈어런스와 애니 페어 · 21+3 · 핫 3 · 버스트 잇 사이드 베팅." />
+<title>ENP BLACKJACK · 가상 머니 모의 블랙잭</title>
+<link rel="stylesheet" href="css/style.css?v=20261127a" />
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%230A0C0D'/%3E%3Cpath d='M9 7h11a6 6 0 0 1 0 12H9z' fill='%23D9B25F'/%3E%3Cpath d='M9 7v18' stroke='%23D9B25F' stroke-width='3'/%3E%3C/svg%3E" />
+</head>
+<body>
+
+<!-- ══════════ SPLASH ══════════ -->
+<div class="splash" id="splash" aria-hidden="true">
+  <div class="sp-vignette"></div>
+  <div class="sp-stage">
+    <div class="sp-kicker">LIVE STUDIO · VIRTUAL TABLE</div>
+    <div class="plaque">
+      <span class="pl-corner tl"></span><span class="pl-corner tr"></span>
+      <span class="pl-corner bl"></span><span class="pl-corner br"></span>
+      <svg class="plaque-veins" viewBox="0 0 420 132" preserveAspectRatio="none" aria-hidden="true">
+        <path d="M16 112 L48 84 L34 74 L68 48 L54 40 L84 14"/>
+        <path d="M404 112 L372 84 L386 74 L352 48 L366 40 L336 14"/>
+      </svg>
+      <div class="plaque-word">BLACKJACK</div>
+      <div class="plaque-tag">PAYS 3 TO 2</div>
+    </div>
+    <div class="sp-ko">가상 머니 블랙잭</div>
+    <div class="sp-sub">8 DECK SHOE · DEALER STANDS ON ALL 17s</div>
+    <div class="sp-provide">제공</div>
+    <div class="sp-enp">
+      <span class="enp-mark">
+        <svg viewBox="0 0 34 34" aria-hidden="true">
+          <path d="M17 2.2 30.3 9.9v14.2L17 31.8 3.7 24.1V9.9L17 2.2Z" fill="none" stroke="currentColor" stroke-width="1.5"/>
+          <path d="M12 11.2h10M12 17h7.4M12 22.8h10" stroke="currentColor" stroke-width="2.1" stroke-linecap="round"/>
+        </svg>
+      </span>
+      <span class="enp-word">ENP</span>
+    </div>
+  </div>
+</div>
+
+<div class="app" id="app" data-phase="betting">
+
+  <!-- ══════════ TOP BAR ══════════ -->
+  <header class="topbar">
+    <div class="tb-left">
+      <button class="brand" id="brand" aria-label="ENP Blackjack">
+        <span class="brand-mark"><b>E</b><i class="brand-glyph">♠</i></span>
+        <span class="brand-text"><b>ENP</b><i>BLACKJACK</i></span>
+      </button>
+      <span class="vm-badge">가상 머니</span>
+    </div>
+
+    <nav class="mode-switch" id="modeSwitch" aria-label="테이블 선택">
+      <a class="mode-btn" href="../index.html?mode=speed" aria-label="스피드 바카라로 이동"><span class="mi">🚀</span><span class="mt">스피드</span></a>
+      <a class="mode-btn" href="../index.html?mode=sakura" aria-label="벚꽃 바카라로 이동"><span class="mi">🌸</span><span class="mt">벚꽃</span></a>
+      <a class="mode-btn" href="../index.html?mode=snow" aria-label="눈꽃 바카라로 이동"><span class="mi">❄️</span><span class="mt">눈꽃</span></a>
+      <span class="mode-btn is-active" aria-current="page" aria-label="블랙잭 테이블 (현재)"><span class="mi spade">♠</span><span class="mt">블랙잭</span></span>
+    </nav>
+
+    <div class="tb-right">
+      <button class="user-chip" id="userChip" aria-label="계정 · 로그인 또는 가입">
+        <span class="avatar" id="avatar">E</span>
+        <span class="uc-name" id="nickName">게스트</span>
+      </button>
+      <div class="balance-pill" id="balancePill" title="가상 머니 잔액">
+        <span class="bp-cur">₩</span>
+        <span class="bp-amount" id="balance">10억</span>
+        <button class="bp-refill" id="refillBtn" title="가상 머니 충전">충전</button>
+      </div>
+      <button class="ico-btn" id="soundBtn" aria-label="사운드 켜기/끄기" title="사운드"></button>
+      <button class="ico-btn" id="infoBtn" aria-label="규칙 및 설정" title="규칙 및 설정">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" stroke-width="1.7"/><path d="M12 10.6v5.2" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><circle cx="12" cy="7.9" r="1.05" fill="currentColor"/></svg>
+      </button>
+    </div>
+  </header>
+
+  <!-- ══════════ MAIN ══════════ -->
+  <main class="layout">
+    <div class="main-col">
+
+      <!-- ─────────── DEALER STUDIO ─────────── -->
+      <section class="stage" id="stage" aria-label="블랙잭 테이블">
+        <div class="studio" aria-hidden="true">
+          <div class="st-wall"></div>
+          <div class="st-panel p1"></div><div class="st-panel p2"></div>
+          <div class="st-beam b1"></div><div class="st-beam b2"></div>
+          <div class="st-beam b3"></div>
+          <div class="st-spot"></div>
+          <div class="st-vignette"></div>
+        </div>
+
+        <div class="dealer" id="dealer" aria-hidden="true">
+          <div class="dp-blur"></div>
+          <img class="dp-img" src="assets/dealer.jpg" alt="" draggable="false" decoding="async">
+          <div class="dp-tint"></div>
+          <div class="dp-fade"></div>
+        </div>
+
+        <div class="felt" id="felt" aria-hidden="true">
+          <div class="felt-grain"></div>
+          <div class="felt-rim"></div>
+          <div class="felt-mark">ENP</div>
+        </div>
+
+        <div class="shoe" id="shoeEl" title="잔여 카드 (누르면 셔플)" aria-label="카드 슈 · 잔여 카드">
+          <span class="shoe-3d" aria-hidden="true"><span class="sh-base"></span><span class="sh-deck"></span><span class="sh-mouth"></span></span>
+          <span class="shoe-count" id="shoeCount">416</span>
+        </div>
+
+        <div class="table-layer">
+          <div class="dealer-zone" id="dealerZone">
+            <div class="dealer-cards-wrap">
+              <div class="cards dealer-cards" id="dealerCards" aria-label="딜러 카드"></div>
+              <div class="hand-badge dealer-badge" id="dealerBadge" hidden><i>0</i></div>
+              <div class="bj-flag" id="dealerBJ" hidden>BLACKJACK</div>
+            </div>
+          </div>
+
+          <div class="arc-zone" aria-hidden="true">
+            <svg class="felt-arcs" viewBox="0 0 600 84" preserveAspectRatio="xMidYMid meet">
+              <defs>
+                <path id="arcTop" d="M42 64 Q300 2 558 64" fill="none"/>
+                <path id="arcBot" d="M62 80 Q300 26 538 80" fill="none"/>
+              </defs>
+              <text class="arc-main"><textPath href="#arcTop" startOffset="50%" text-anchor="middle">BLACKJACK PAYS 3 TO 2</textPath></text>
+              <text class="arc-sub"><textPath href="#arcBot" startOffset="50%" text-anchor="middle">DEALER STANDS ON ALL 17s · INSURANCE PAYS 2 TO 1</textPath></text>
+            </svg>
+            <div class="win-celebrate" id="winCelebrate" aria-hidden="true">
+              <div class="wc-ribbon" id="wcRibbon"><b id="wcTitle">플레이어 승</b></div>
+              <div class="wc-won" id="wcWon">이겼습니다</div>
+              <div class="wc-amount">
+                <i class="wc-sp s1"></i><i class="wc-sp s2"></i><i class="wc-sp s3"></i><i class="wc-sp s4"></i><i class="wc-sp s5"></i><i class="wc-sp s6"></i>
+                <span class="wc-cur">₩</span><b id="wcAmount">0</b>
+              </div>
+            </div>
+          </div>
+
+          <div class="player-zone" id="playerZone" aria-label="플레이어 핸드"></div>
+        </div>
+
+        <div class="dh-layer" id="dhLayer" aria-hidden="true"></div>
+
+        <div class="shuffle-veil" id="shuffleVeil" aria-hidden="true"><i class="sh-card"></i><span>SHUFFLING</span></div>
+      </section>
+
+      <!-- ─────────── SIDE BETS ─────────── -->
+      <section class="sidebets" id="sideBets" aria-label="사이드 베팅">
+        <button class="side-zone" data-side="anyPair" aria-label="애니 페어 베팅">
+          <span class="sz-top"><b>애니 페어</b><i>ANY PAIR</i></span>
+          <span class="sz-pay">8:1 · 25:1</span>
+          <span class="sz-chips" data-szchips="anyPair"></span>
+          <span class="sz-badge" data-szbadge="anyPair" hidden></span>
+        </button>
+        <button class="side-zone" data-side="t213" aria-label="21+3 베팅">
+          <span class="sz-top"><b>21+3</b><i>POKER</i></span>
+          <span class="sz-pay">5:1 ~ 100:1</span>
+          <span class="sz-chips" data-szchips="t213"></span>
+          <span class="sz-badge" data-szbadge="t213" hidden></span>
+        </button>
+        <button class="side-zone" data-side="hot3" aria-label="핫 3 베팅">
+          <span class="sz-top"><b>핫 3</b><i>HOT 3</i></span>
+          <span class="sz-pay">1:1 ~ 100:1</span>
+          <span class="sz-chips" data-szchips="hot3"></span>
+          <span class="sz-badge" data-szbadge="hot3" hidden></span>
+        </button>
+        <button class="side-zone" data-side="bustIt" aria-label="버스트 잇 베팅">
+          <span class="sz-top"><b>버스트 잇</b><i>BUST IT</i></span>
+          <span class="sz-pay">1:1 ~ 250:1</span>
+          <span class="sz-chips" data-szchips="bustIt"></span>
+          <span class="sz-badge" data-szbadge="bustIt" hidden></span>
+        </button>
+      </section>
+
+      <!-- ─────────── BET DECK ─────────── -->
+      <section class="deck" aria-label="베팅 컨트롤">
+
+        <div class="insure" id="insure" hidden>
+          <span class="in-ace" id="inAce">A♠</span>
+          <div class="in-copy">
+            <b>인슈어런스</b>
+            <span id="insAmount">보험료 ₩0 · 딜러 블랙잭이면 2:1</span>
+          </div>
+          <div class="in-actions">
+            <button class="in-yes" id="insYes">보험</button>
+            <button class="in-no" id="insNo">패스</button>
+          </div>
+        </div>
+
+        <div class="bet-deck" id="betDeck">
+          <div class="bet-line">
+            <span class="chip-now">칩 <b id="chipAmount">10K</b></span>
+            <span class="bet-total">총 베팅 <b id="betTotal">₩0</b></span>
+            <span class="bet-limit" id="betLimit">한도 없음</span>
+          </div>
+          <div class="chip-row" id="chipRow" role="group" aria-label="칩 선택">
+            <button class="chip" data-chip="1000" aria-label="1K"><i class="ln2">1K</i></button>
+            <button class="chip" data-chip="5000" aria-label="5K"><i class="ln2">5K</i></button>
+            <button class="chip is-active" data-chip="10000" aria-label="10K"><i class="ln3">10K</i></button>
+            <button class="chip" data-chip="50000" aria-label="50K"><i class="ln3">50K</i></button>
+            <button class="chip" data-chip="100000" aria-label="100K"><i class="ln4">100K</i></button>
+            <button class="chip" data-chip="500000" aria-label="500K"><i class="ln4">500K</i></button>
+            <button class="chip" data-chip="1000000" aria-label="1M"><i class="ln2">1M</i></button>
+            <button class="chip" data-chip="5000000" aria-label="5M"><i class="ln2">5M</i></button>
+            <button class="chip" data-chip="10000000" aria-label="10M"><i class="ln3">10M</i></button>
+            <button class="chip" data-chip="100000000" aria-label="100M"><i class="ln4">100M</i></button>
+          </div>
+          <div class="ctrl-row">
+            <button class="ctrl-btn" id="undoBtn" aria-label="실행 취소" title="실행 취소">↺</button>
+            <button class="ctrl-btn wide" id="rebetBtn">재베팅</button>
+            <button class="ctrl-btn" id="halfBtn" aria-label="절반">½</button>
+            <button class="ctrl-btn" id="doubleBtn" aria-label="두 배">2×</button>
+            <button class="ctrl-btn" id="clearBtn" aria-label="베팅 초기화">지우기</button>
+            <button class="deal-btn" id="dealBtn">
+              <span class="deal-label">딜</span>
+              <span class="deal-amt" id="dealAmount">베팅하세요</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- ─────────── ACTION DECK ─────────── -->
+        <div class="action-deck" id="actionDeck" hidden>
+          <div class="act-head">
+            <span class="act-hand" id="actHand">핸드 1</span>
+            <span class="act-total" id="actTotal">0</span>
+            <span class="act-note" id="actNote">액션을 선택하세요</span>
+          </div>
+          <div class="act-row">
+            <button class="act hit" data-act="hit"><b>히트</b><i>HIT</i></button>
+            <button class="act stand" data-act="stand"><b>스탠드</b><i>STAND</i></button>
+            <button class="act dbl" data-act="double"><b>더블</b><i>DOUBLE</i></button>
+            <button class="act split" data-act="split"><b>스플릿</b><i>SPLIT</i></button>
+          </div>
+        </div>
+
+        <!-- ─────────── RESULT DECK ─────────── -->
+        <div class="result-deck" id="resultDeck" hidden>
+          <div class="res-head">
+            <b id="resTitle">핸드 결과</b>
+            <span id="resNet">₩0</span>
+          </div>
+          <div class="res-rows" id="resRows"></div>
+          <button class="next-btn" id="nextBtn"><span>다음 판</span><i id="nextTimer">7</i></button>
+        </div>
+
+      </section>
+
+      <!-- ─────────── STATUS BAR ─────────── -->
+      <footer class="statusbar">
+        <span class="st-stake">총 베팅 <b id="totalStake">₩0</b></span>
+        <span class="st-lastwin" id="lastWinCell" hidden>지난 우승 <b id="lastWin">₩0</b></span>
+        <span class="st-bal">잔고 <b id="statusBalance">₩10억</b></span>
+        <span class="st-table"><b>ENP 블랙잭</b><i id="statusLimit">최소 ₩1,000 · 한도 없음</i></span>
+        <span class="st-note" id="tableNote">8덱 슈</span>
+      </footer>
+    </div>
+
+    <aside class="side-panel" aria-label="세션 정보">
+      <div class="sp-head"><h3>최근 기록</h3><span>가상 머니 · 모의 테이블</span></div>
+      <div class="history-list" id="historyList"><span class="hist-empty">아직 기록이 없습니다</span></div>
+      <div class="sp-stats">
+        <div><span>순손익</span><b id="statNet">₩0</b></div>
+        <div><span>승 / 패</span><b id="statWL">0 / 0</b></div>
+        <div><span>블랙잭</span><b id="statBJ">0</b></div>
+      </div>
+      <div class="sp-rules" id="spRules">
+        <div><span>블랙잭</span><b>3:2</b></div>
+        <div><span>인슈어런스</span><b>2:1</b></div>
+        <div><span>딜러</span><b>17 스탠드</b></div>
+        <div><span>스플릿</span><b>최대 4핸드</b></div>
+      </div>
+    </aside>
+  </main>
+</div>
+
+<div class="fx-layer" id="fxLayer" aria-hidden="true"></div>
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+<!-- ══════════ RULES MODAL ══════════ -->
+<div class="modal-back" id="modalBack" hidden>
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
+    <div class="modal-head">
+      <h2 id="modalTitle">규칙 및 설정</h2>
+      <button class="modal-x" id="modalClose" aria-label="닫기">✕</button>
+    </div>
+    <div class="modal-body">
+      <section class="m-sec">
+        <h3>계정</h3>
+        <div class="m-account" id="mAccount">
+          <span class="ma-avatar" id="maAvatar">G</span>
+          <div class="ma-id"><b id="maName">게스트</b><i id="maRole">로그인하면 바카라와 같은 계정을 씁니다</i></div>
+          <button class="btn ghost sm" id="maOpen" type="button">로그인 / 계정</button>
+        </div>
+      </section>
+
+      <section class="m-sec">
+        <h3>설정</h3>
+        <label class="opt"><span>사운드</span><input type="checkbox" id="optSound" checked><i class="sw"></i></label>
+        <label class="opt"><span>딜러 손 모션</span><input type="checkbox" id="optMotion" checked><i class="sw"></i></label>
+        <label class="opt"><span>결과 자동 진행</span><input type="checkbox" id="optAuto" checked><i class="sw"></i></label>
+      </section>
+
+      <section class="m-sec">
+        <h3>가상 머니</h3>
+        <div class="m-money">
+          <div><span>현재 잔액</span><b id="modalBalance">₩1,000,000,000</b></div>
+          <div class="m-money-actions">
+            <button class="btn ghost sm" id="modalRefill">+₩10억 충전</button>
+            <button class="btn danger sm" id="modalReset">잔액 초기화</button>
+          </div>
+        </div>
+        <p class="m-note">모든 금액은 가상 머니입니다. 충전은 언제든 무료이며 실제 결제가 발생하지 않습니다.</p>
+      </section>
+
+      <section class="m-sec">
+        <h3>블랙잭 규칙</h3>
+        <ul class="m-list">
+          <li><b>8덱 슈(416장)</b> · 피셔-예이츠 셔플 · 52장 이하에서 자동 셔플.</li>
+          <li><b>블랙잭 3:2</b> — 첫 두 장이 A + 10·J·Q·K일 때. 딜러 블랙잭과 만나면 푸시.</li>
+          <li><b>딜러는 모든 17에서 스탠드</b>(소프트 17 포함). 16 이하는 히트.</li>
+          <li><b>히트 · 스탠드 · 더블다운 · 스플릿</b> — 더블은 첫 두 장에서만, 스플릿 후에도 가능합니다.</li>
+          <li><b>스플릿</b>은 같은 값 두 장(10·J·Q·K 포함)을 최대 4핸드까지. 스플릿 Ace는 한 장씩 받고 자동 스탠드.</li>
+          <li><b>인슈어런스</b>는 딜러의 오픈 카드가 A일 때 메인 베팅의 절반까지. 딜러 블랙잭이면 2:1 지급.</li>
+          <li>블랙잭은 첫 두 장에만 적용되며, 스플릿한 21은 일반 21로 정산됩니다.</li>
+        </ul>
+      </section>
+
+      <section class="m-sec">
+        <h3>사이드 베팅</h3>
+        <table class="m-table">
+          <thead><tr><th>베팅</th><th>조건</th><th>배당</th></tr></thead>
+          <tbody>
+            <tr><td>애니 페어</td><td>첫 두 장이 같은 랭크 (수티드 / 일반)</td><td>25:1 · 8:1</td></tr>
+            <tr><td rowspan="5">21+3</td><td>수티드 트립스</td><td>100:1</td></tr>
+            <tr><td>스트레이트 플러시</td><td>40:1</td></tr>
+            <tr><td>트리플</td><td>30:1</td></tr>
+            <tr><td>스트레이트</td><td>10:1</td></tr>
+            <tr><td>플러시</td><td>5:1</td></tr>
+            <tr><td rowspan="5">핫 3</td><td>7-7-7</td><td>100:1</td></tr>
+            <tr><td>합계 21 수티드</td><td>20:1</td></tr>
+            <tr><td>합계 21</td><td>4:1</td></tr>
+            <tr><td>합계 20</td><td>2:1</td></tr>
+            <tr><td>합계 19</td><td>1:1</td></tr>
+            <tr><td rowspan="6">버스트 잇</td><td>딜러 3장 버스트</td><td>1:1</td></tr>
+            <tr><td>4장 버스트</td><td>2:1</td></tr>
+            <tr><td>5장 버스트</td><td>9:1</td></tr>
+            <tr><td>6장 버스트</td><td>50:1</td></tr>
+            <tr><td>7장 버스트</td><td>100:1</td></tr>
+            <tr><td>8장 이상 버스트</td><td>250:1</td></tr>
+          </tbody>
+        </table>
+        <p class="m-note">애니 페어 · 21+3 · 핫 3은 첫 두 장과 딜러 오픈 카드로 즉시 판정되고, 버스트 잇은 딜러의 최종 결과로 정산됩니다. 플레이어가 블랙잭이면 버스트 잇은 푸시입니다.</p>
+      </section>
+
+      <section class="m-sec">
+        <h3>베팅</h3>
+        <ul class="m-list">
+          <li>칩은 <b>1K ~ 100M</b> (천 · 백만 · 십억 단위 표기), 최소 베팅 ₩1,000, <b>테이블 한도 없음</b>.</li>
+          <li>메인 베팅은 테이블의 <b>BET</b> 자리에, 사이드 베팅은 하단 4개 칸에 놓습니다.</li>
+          <li>사이드 베팅만으로는 딜할 수 없으며 메인 베팅이 필요합니다.</li>
+          <li>기본 가상 머니 <b>₩10억</b>. `충전`은 누를 때마다 +₩10억(무료).</li>
+        </ul>
+      </section>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════ HISTORY (mobile) ══════════ -->
+<div class="modal-back" id="histBack" hidden>
+  <div class="modal hist-modal" role="dialog" aria-modal="true" aria-label="플레이 기록">
+    <div class="modal-head">
+      <h2>플레이 기록</h2>
+      <button class="modal-x" id="histClose" aria-label="닫기">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="hist-stats">
+        <div><span>순손익</span><b id="hStatNet">₩0</b></div>
+        <div><span>라운드</span><b id="hStatRounds">0</b></div>
+        <div><span>블랙잭</span><b id="hStatBJ">0</b></div>
+      </div>
+      <div class="history-list" id="historyListM"><span class="hist-empty">아직 기록이 없습니다</span></div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════ MEMBER ACCOUNT (바카라와 공용) ══════════ -->
+<div class="modal-back" id="authBack" hidden>
+  <div class="auth-panel" role="dialog" aria-modal="true" aria-labelledby="authTitle">
+    <button class="modal-x auth-x" id="authClose" aria-label="닫기">✕</button>
+    <div class="auth-brand">
+      <span class="auth-mark">♠</span>
+      <h2 id="authTitle">ENP MEMBER</h2>
+      <p>바카라 · 블랙잭 공용 가상 머니 계정</p>
+    </div>
+    <div class="auth-tabs" id="authTabs">
+      <button data-auth="login" class="is-active">로그인</button>
+      <button data-auth="signup">회원가입</button>
+    </div>
+    <form id="authForm" autocomplete="off" novalidate>
+      <label class="fld"><span>아이디</span><input id="authId" maxlength="14" placeholder="3~14자 영문·숫자" autocapitalize="none" spellcheck="false"></label>
+      <label class="fld is-hidden" id="nickFld"><span>닉네임 <i>선택</i></span><input id="authNick" maxlength="12" placeholder="표시 이름"></label>
+      <label class="fld"><span>PIN <i>4~6자리 숫자</i></span><input id="authPin" type="password" inputmode="numeric" maxlength="6" placeholder="••••"></label>
+      <label class="fld is-hidden" id="pin2Fld"><span>PIN 확인</span><input id="authPin2" type="password" inputmode="numeric" maxlength="6" placeholder="••••"></label>
+      <div class="auth-msg" id="authMsg"></div>
+      <button class="auth-submit" id="authSubmit" type="submit">로그인</button>
+    </form>
+    <div class="auth-profile" id="authProfile" hidden>
+      <div class="ap-avatar" id="apAvatar">E</div>
+      <div class="ap-name" id="apName">enp</div>
+      <div class="ap-role">바카라 · 블랙잭 공용 계정</div>
+      <div class="ap-bal"><span>보유 가상 머니</span><b id="apBalance">₩1,000,000,000</b></div>
+      <button class="auth-submit" id="apHistory" type="button">플레이 기록</button>
+      <button class="auth-submit ghost" id="apLogout" type="button">로그아웃</button>
+      <button class="auth-link" id="apSwitch" type="button">다른 계정으로 로그인</button>
+    </div>
+    <div class="auth-foot">
+      <button id="guestBtn" type="button">게스트로 계속하기</button>
+      <p>모든 금액은 가상 머니입니다 · 실제 결제·현금 없음</p>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════ ADMIN PIN ══════════ -->
+<div class="modal-back pin-back" id="pinBack" hidden>
+  <div class="pin-panel" role="dialog" aria-modal="true" aria-label="관리자 인증">
+    <div class="pin-head"><span>SECURE ACCESS</span><button id="pinClose" aria-label="닫기">✕</button></div>
+    <div class="pin-dots" id="pinDots"><i></i><i></i><i></i><i></i></div>
+    <div class="pin-msg" id="pinMsg">비밀번호 4자리를 입력하세요</div>
+    <div class="keypad" id="keypad">
+      <button data-key="1">1</button><button data-key="2">2</button><button data-key="3">3</button>
+      <button data-key="4">4</button><button data-key="5">5</button><button data-key="6">6</button>
+      <button data-key="7">7</button><button data-key="8">8</button><button data-key="9">9</button>
+      <button data-key="clear" class="kp-soft">C</button><button data-key="0">0</button><button data-key="back" class="kp-soft">⌫</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════ ADMIN PANEL ══════════ -->
+<div class="modal-back" id="adminBack" hidden>
+  <div class="admin-panel" role="dialog" aria-modal="true" aria-label="관리자 패널">
+    <div class="admin-head">
+      <div class="admin-title"><span class="admin-badge">ADMIN</span><h2>회원 · 가상 머니 관리</h2></div>
+      <button class="modal-x" id="adminClose" aria-label="닫기">✕</button>
+    </div>
+    <div class="admin-body">
+      <div class="adm-card">
+        <span>현재 잔액</span>
+        <b id="admBalance">₩1,000,000,000</b>
+      </div>
+      <div class="adm-toolbar">
+        <label class="adm-amount"><span>조정 금액</span><input id="admAmount" inputmode="numeric" value="100000"><button class="btn ghost sm" id="admApply" type="button">적용</button></label>
+        <div class="adm-presets">
+          <button data-preset="100000">+10만</button>
+          <button data-preset="1000000">+100만</button>
+          <button data-preset="10000000">+1000만</button>
+          <button data-preset="-100000">−10만</button>
+          <button data-preset="reset">초기화</button>
+        </div>
+      </div>
+      <div class="adm-note">가상 머니만 조정됩니다. 실제 결제·출금과 무관합니다.</div>
+      <div class="adm-profile">
+        <label><span>닉네임</span><input id="admNick" maxlength="12" value="enp"></label>
+        <button class="btn ghost sm" id="admNickSave">저장</button>
+      </div>
+      <div class="adm-stats">
+        <div><span>라운드</span><b id="admRounds">0</b></div>
+        <div><span>순손익</span><b id="admNet">₩0</b></div>
+        <div><span>블랙잭</span><b id="admBJ">0</b></div>
+      </div>
+
+      <div class="adm-members">
+        <h3>회원 · 잔액 <span>바카라와 같은 계정 · 같은 잔액</span></h3>
+        <div class="adm-users" id="admUsers"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="../js/enp-account.js?v=20261127a"></script>
+<script src="js/engine.js?v=20261127a"></script>
+<script src="js/audio.js?v=20261127a"></script>
+<script src="js/app.js?v=20261127a"></script>
+</body>
+</html>

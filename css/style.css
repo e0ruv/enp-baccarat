@@ -2364,3 +2364,55 @@ body[data-mode="snow"] .bonus-rail { border-color: rgba(169, 220, 242, .32); }
 .round-clock.is-urgent {
   background: conic-gradient(#FF4B5C var(--deg, 90deg), rgba(255, 255, 255, .16) 0) border-box;
 }
+
+/* ══════════════════════════════════════════════════════════════
+   통합 테이블 네비 — 🂡 블랙잭 탭 (같은 사이트 안의 다른 테이블)
+   ══════════════════════════════════════════════════════════════ */
+.mode-switch .mode-btn.mode-nav {
+  text-decoration: none;
+  color: #C9B98E;
+}
+.mode-switch .mode-btn.mode-nav .mi { color: #EAD9AE; }
+.mode-switch .mode-btn.mode-nav::before {
+  content: "";
+  display: block;
+  width: 1px; height: 14px;
+  margin-right: 4px;
+  background: rgba(217, 178, 95, .22);
+}
+@media (hover: hover) {
+  .mode-switch .mode-btn.mode-nav:hover {
+    color: #FFEFC4;
+    background: rgba(217, 178, 95, .12);
+  }
+}
+/* 좁은 화면: 탭은 이모지 + 금색 선택 표시만 (이름은 title·aria-label 로) */
+@media (max-width: 560px) {
+  .mode-switch { gap: 1px; padding: 2px; }
+  .mode-btn { padding: 0 6px; gap: 0; font-size: 11px; }
+  .mode-btn .mt { display: none; }
+  .mode-btn.mode-nav { padding: 0 6px; }
+  .mode-btn.mode-nav::before { height: 12px; margin-right: 4px; }
+}
+@media (max-width: 400px) {
+  .topbar { gap: 5px; padding: 0 6px; }
+  .account-btn .acc-name { display: none; }
+  .account-btn { padding: 0 2px; }
+}
+@media (max-width: 344px) {
+  .mode-btn.is-active .mt { display: none; }
+  .mode-btn.is-active { padding: 0 6px; }
+  .mode-btn.mode-nav .mt { display: none; }
+  .brand { display: none; }
+}
+
+/* 🂡 대신 모든 기기에서 그려지는 스페이드 글리프 */
+.mode-switch .mode-btn .mi.spade {
+  font-size: 13px;
+  line-height: 1;
+  color: inherit;
+  transform: translateY(-.5px);
+}
+@media (min-width: 900px) {
+  .mode-switch .mode-btn .mi.spade { font-size: 15px; }
+}

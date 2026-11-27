@@ -6,6 +6,7 @@
   'use strict';
 
   const E = window.BaccaratEngine;
+  const ACC = window.ENPAccount || null;   // 바카라 · 블랙잭 공용 계정 저장소
   const MODES = E.MODES;
   const SYM = E.SUIT_SYMBOL;
 
@@ -146,7 +147,7 @@
     return db;
   }
 
-  const DB = loadDB();
+  const DB = ACC ? ACC.db : loadDB();
 
   function activeProfile() {
     return (DB.current && DB.users[DB.current]) ? DB.users[DB.current] : DB.guest;
@@ -186,7 +187,8 @@
     DB.chip = S.chip;
     DB.settings = S.settings;
     try {
-      localStorage.setItem(DB_KEY, JSON.stringify(DB));
+      if (ACC) ACC.save();
+      else localStorage.setItem(DB_KEY, JSON.stringify(DB));
     } catch (err) { /* storage may be unavailable */ }
   }
 
@@ -2555,6 +2557,19 @@
         FX.setMode(S.mode);
       }
     });
+
+    // 테이블을 떠날 때(블랙잭으로 이동 · 새로고침) 아직 정산되지 않은 베팅은 잔액으로 돌려줍니다
+    const refundOnLeave = () => {
+      const stake = totalStake();
+      if (!stake) return;
+      if (S.phase !== 'betting' && S.phase !== 'dealing' && S.phase !== 'reveal') return;
+      S.balance += stake;
+      S.bets = emptyBets();
+      S.stack = [];
+      S.phase = 'betting';
+      save();
+    };
+    window.addEventListener('pagehide', refundOnLeave);
   }
 
 
@@ -2662,35 +2677,32 @@
     if (!/^\d{4,6}$/.test(pin)) { setAuthMsg('PIN은 4~6자리 숫자입니다'); return; }
 
     if (authMode === 'signup') {
+      if (!ACC) { setAuthMsg('계정 저장소를 불러오지 못했습니다'); return; }
       if (DB.users[id]) { setAuthMsg('이미 사용 중인 아이디입니다'); return; }
       if (pin !== pin2) { setAuthMsg('PIN 확인이 일치하지 않습니다'); return; }
-      const hash = await hashPin(pin);
-      DB.users[id] = Object.assign(freshProfile(id, nick), { pin: hash });
+      const res = await ACC.signup(id, nick, pin, pin2);
+      if (!res.ok) { setAuthMsg(res.error); return; }
+      applyProfile(activeProfile());
       save();
-      DB.current = id;
-      applyProfile(DB.users[id]);
-      save();
-      setAuthMsg('가입 완료 · ₩1,000,000 가상 머니 지급', true);
+      setAuthMsg('가입 완료 · ₩10억 가상 머니 지급', true);
       window.Sound && Sound.win();
       toast(`${nick || id}님, 가입을 환영합니다`);
       window.setTimeout(closeAuth, 620);
     } else {
-      const u = DB.users[id];
-      if (!u) { setAuthMsg('아이디를 찾을 수 없습니다'); return; }
-      const hash = await hashPin(pin);
-      if (u.pin !== hash) { setAuthMsg('PIN이 올바르지 않습니다'); return; }
+      if (!ACC) { setAuthMsg('계정 저장소를 불러오지 못했습니다'); return; }
+      const res = await ACC.login(id, pin);
+      if (!res.ok) { setAuthMsg(res.error); return; }
+      applyProfile(activeProfile());
       save();
-      DB.current = id;
-      applyProfile(u);
-      save();
-      toast(`${u.nick || u.id}님 환영합니다`);
+      toast(`${DB.users[id].nick || id}님 환영합니다`);
       window.setTimeout(closeAuth, 220);
     }
   }
 
   function logout() {
     save();
-    DB.current = null;
+    if (ACC) ACC.logout();
+    else DB.current = null;
     applyProfile(DB.guest);
     save();
     closeAuth();
@@ -2937,6 +2949,17 @@
   /* ───────────── boot ───────────── */
   function boot() {
     document.body.classList.add('is-locked');
+
+    // 다른 페이지(블랙잭)에서 넘어올 때 ?mode=speed|sakura|snow 로 테이블을 바로 엽니다
+    try {
+      const want = new URLSearchParams(window.location.search).get('mode');
+      if (want && MODES[want] && want !== S.mode) {
+        S.mode = want;
+        DB.mode = want;
+        save();
+      }
+    } catch (err) { /* ignore */ }
+
     if (el.fx) el.felt.prepend(el.fx);
     if (window.FX) {
       FX.init(el.fx);
@@ -2951,6 +2974,23 @@
     bind();
     startRoundClock(true);
     runSplash();
+
+    // 다른 탭/창(블랙잭 포함)에서 잔액·계정이 바뀌면 이 화면도 따라갑니다
+    if (ACC) {
+      ACC.subscribe((kind) => {
+        if (kind !== 'external') return;
+        const p = activeProfile();
+        S.balance = p.balance;
+        if (S.phase === 'betting') {
+          S.stats = p.stats || S.stats;
+          S.history = Array.isArray(p.history) ? p.history : S.history;
+          S.lastBets = p.lastBets || null;
+        }
+        renderBalance();
+        renderAccount();
+        renderAll();
+      });
+    }
 
     if (S.settings.squeeze && S.mode === 'speed') {
       // speed always instant
